@@ -38,10 +38,14 @@
     body{
       margin: 0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      /* Sleeker single, fixed, non-repeating gradient */
       background:
-              radial-gradient(1200px 800px at 10% -10%, rgba(96,165,250,.25), transparent 60%),
-              radial-gradient(1200px 800px at 110% 10%, rgba(167,139,250,.22), transparent 60%),
+              radial-gradient(1300px 900px at 12% -10%, rgba(96,165,250,.22), transparent 65%),
+              radial-gradient(1500px 1000px at 110% 0%, rgba(167,139,250,.18), transparent 62%),
               var(--bg);
+      background-repeat: no-repeat, no-repeat, no-repeat;
+      background-attachment: fixed, fixed, fixed;
+      background-size: 1400px 900px, 1600px 1000px, auto;
       color: var(--fg);
       padding: clamp(14px, 3vw, 28px);
     }
@@ -92,14 +96,14 @@
     .toolbar .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 
     .inputs{
-      display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:end;
+      display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap:8px; align-items:start;
     }
     @media (max-width: 780px){ .inputs{ grid-template-columns: 1fr; } }
     label{ font-size:.86rem; color:var(--muted); display:block; margin: 0 0 6px; }
-    input[type="datetime-local"]{
+    input[type="datetime-local"], input[type="number"], select.sel{
       width: 100%;
       border:1px solid var(--border); background:var(--card); color:var(--fg);
-      padding:10px 12px; border-radius:12px;
+      padding:10px 12px; border-radius:12px; min-width:0;
     }
     .btn{
       appearance:none; border:1px solid var(--border); background:var(--card);
@@ -128,6 +132,9 @@
     tbody td{ padding:10px; border-bottom:1px solid var(--border); white-space:nowrap; }
     .muted{ color: var(--muted) }
     .hide-sm{ } @media (max-width:540px){ .hide-sm{ display:none } }
+
+    .row-flex{ display:flex; gap:8px; align-items:end; flex-wrap:wrap }
+    .hidden{ display:none !important; }
   </style>
 </head>
 <body>
@@ -166,7 +173,28 @@
         <label for="end">End (local)</label>
         <input id="end" type="datetime-local" />
       </div>
-      <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap">
+
+      <div class="row-flex">
+        <!-- Location picker -->
+        <div style="min-width:200px">
+          <label for="locMode">Location</label>
+          <select id="locMode" class="sel" title="Choose data location">
+            <option value="default" selected>Denver</option>
+            <option value="geo">My Location</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+
+        <!-- Custom coordinates (hidden unless Custom is selected) -->
+        <div id="customCoords" class="hidden" style="min-width:260px">
+          <label for="lat">Lat / Lon</label>
+          <div class="row-flex">
+            <input id="lat" type="number" step="0.0001" placeholder="Lat e.g. 39.7392" style="width:120px" />
+            <input id="lon" type="number" step="0.0001" placeholder="Lon e.g. -104.9903" style="width:130px" />
+            <button id="useCoords" class="btn" type="button" title="Use these coordinates">Use</button>
+          </div>
+        </div>
+
         <button id="apply" class="btn primary" type="button" title="Apply custom range">Apply</button>
       </div>
     </div>
@@ -197,6 +225,8 @@
 <script>
   // ---------- Config / DOM ----------
   const DENVER = { lat: 39.7392, lon: -104.9903 };
+  let CURRENT = { ...DENVER }; // changes with My Location or Custom
+
   const statusEl  = document.getElementById('status');
   const stationEl = document.getElementById('station');
   const updatedEl = document.getElementById('updated');
@@ -208,6 +238,13 @@
   const endInp    = document.getElementById('end');
   const quickBtns = Array.from(document.querySelectorAll('button[data-quick]'));
   const modeTabs  = Array.from(document.querySelectorAll('.seg [data-mode]'));
+
+  // Location controls
+  const locModeSel   = document.getElementById('locMode');
+  const customWrap   = document.getElementById('customCoords');
+  const latInp       = document.getElementById('lat');
+  const lonInp       = document.getElementById('lon');
+  const useCoordsBtn = document.getElementById('useCoords');
 
   let currentMode = 'observed'; // 'observed' | 'historical' | 'forecast'
 
@@ -296,26 +333,12 @@
   }
 
   // Historical observations (months/years): IEM ASOS CSV (no key, no headers)
-  // We'll request altimeter (alti, in inches of mercury) and mslp (hPa) as fallback.
   async function getHistoricalIEM(icao, startDate, endDate){
-    // IEM expects date parts and whole-day ranges. We'll request inclusive whole days bounding the user range.
     const s = new Date(startDate), e = new Date(endDate);
     const sy = s.getUTCFullYear(), sm = s.getUTCMonth()+1, sd = s.getUTCDate();
     const ey = e.getUTCFullYear(), em = e.getUTCMonth()+1, ed = e.getUTCDate();
 
-    const params = new URLSearchParams({
-      station: icao,
-      data: 'alti',
-      'data': 'mslp',
-      tz: 'UTC',
-      format: 'onlycomma',
-      latlon: 'no',
-      year1: String(sy), month1: String(sm), day1: String(sd),
-      year2: String(ey), month2: String(em), day2: String(ed),
-      time: '0:00-23:59'
-    });
-    const base = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py';
-    const url = `${base}?station=${encodeURIComponent(icao)}&data=alti&data=mslp&tz=UTC&format=onlycomma&latlon=no&year1=${sy}&month1=${sm}&day1=${sd}&year2=${ey}&month2=${em}&day2=${ed}&time=0:00-23:59`;
+    const url = `https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=${encodeURIComponent(icao)}&data=alti&data=mslp&tz=UTC&format=onlycomma&latlon=no&year1=${sy}&month1=${sm}&day1=${sd}&year2=${ey}&month2=${em}&day2=${ed}&time=0:00-23:59`;
 
     const r = await fetch(url);
     if(!r.ok) throw new Error(`IEM ASOS request failed: ${r.status}`);
@@ -356,11 +379,9 @@
 
   // Forecast (Open-Meteo: hourly mean sea level pressure -> inHg)
   async function getForecastPressure(lat, lon){
-    // Build range so we don't download tons of unused hours
     const sDate = fromLocalInputValue(startInp.value) || new Date();
     const eDate = fromLocalInputValue(endInp.value)   || new Date(Date.now() + 48*3600*1000);
 
-    // Open-Meteo returns ISO time array + pressure_msl (hPa). No key, CORS OK.
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
             `&hourly=pressure_msl&timezone=auto` +
             `&start_date=${sDate.toISOString().slice(0,10)}&end_date=${eDate.toISOString().slice(0,10)}`;
@@ -390,7 +411,6 @@
       });
     }
 
-    // clip to exact datetime picker window
     const s = sDate.getTime(), e = eDate.getTime();
     const clipped = rows.filter(r => r.timeMs >= s && r.timeMs <= e);
     clipped.sort((a,b)=>a.timeMs-b.timeMs);
@@ -460,8 +480,8 @@
         max: 31.0
       },
       dataZoom: [
-        { type: 'inside', throttle: 40 },
-        { type: 'slider', height: 22, bottom: 22, moveHandleSize: 6, showDetail: false }
+        { type: 'inside', throttle: 40 }
+        /* slider removed to hide bottom interactive bar */
       ],
       series: [
         {
@@ -518,8 +538,7 @@
 
   async function loadForecastRange(startIso, endIso){
     setStatus("Fetching forecast (Open-Meteo) …");
-    const all = await getForecastPressure(DENVER.lat, DENVER.lon);
-    // clip to custom range (getForecastPressure already clips, but this is harmless)
+    const all = await getForecastPressure(CURRENT.lat, CURRENT.lon);
     const s = new Date(startIso).getTime(), e = new Date(endIso).getTime();
     return all.filter(r => r.timeMs >= s && r.timeMs <= e);
   }
@@ -564,6 +583,55 @@
     }
   }
 
+  // ---------- Location helpers ----------
+  async function updateStationAndRefresh(){
+    setStatus("Finding nearest station…");
+    const meta = await getNearestStation(CURRENT.lat, CURRENT.lon);
+    stationId  = meta.stationId;
+    pointsMeta = meta.pointsMeta;
+    stationEl.textContent = stationId;
+    await applyRange();
+  }
+
+  locModeSel.addEventListener('change', async () => {
+    const mode = locModeSel.value;
+    customWrap.classList.toggle('hidden', mode !== 'custom');
+
+    if(mode === 'default'){
+      CURRENT = { ...DENVER };
+      await updateStationAndRefresh();
+    }else if(mode === 'geo'){
+      try{
+        setStatus("Requesting your location…");
+        await new Promise((resolve, reject) => {
+          if(!navigator.geolocation) return reject(new Error("Geolocation not supported."));
+          navigator.geolocation.getCurrentPosition(
+                  pos => { CURRENT = { lat: pos.coords.latitude, lon: pos.coords.longitude }; resolve(); },
+                  err => reject(new Error("Location denied or unavailable.")),
+                  { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+          );
+        });
+        await updateStationAndRefresh();
+      }catch(e){
+        console.error(e);
+        setStatus(String(e.message || e));
+        setDot('var(--err)');
+      }
+    }
+  });
+
+  useCoordsBtn.addEventListener('click', async () => {
+    const lat = parseFloat(latInp.value);
+    const lon = parseFloat(lonInp.value);
+    if(!Number.isFinite(lat) || !Number.isFinite(lon)){
+      setStatus("Enter valid latitude and longitude.");
+      setDot('var(--warn)');
+      return;
+    }
+    CURRENT = { lat, lon };
+    await updateStationAndRefresh();
+  });
+
   // ---------- UI events ----------
   toggleBtn.addEventListener('click', () => {
     useLocalTime = !useLocalTime;
@@ -589,7 +657,6 @@
   modeTabs.forEach(btn => btn.addEventListener('click', () => {
     currentMode = btn.dataset.mode;
     setPressed(currentMode);
-    // If user switches to Forecast and picked a past window, auto-switch to next 48h
     if(currentMode === 'forecast'){
       const start = new Date();
       const end = new Date(Date.now() + 48*3600*1000);
@@ -614,7 +681,7 @@
   async function main(){
     try{
       setStatus("Finding nearest station to Denver…");
-      const meta = await getNearestStation(DENVER.lat, DENVER.lon);
+      const meta = await getNearestStation(CURRENT.lat, CURRENT.lon);
       stationId  = meta.stationId;       // e.g., KDEN
       pointsMeta = meta.pointsMeta;
       stationEl.textContent = stationId;
