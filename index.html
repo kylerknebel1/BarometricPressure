@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Denver Barometric Pressure (NWS) — ECharts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
+    h1 { margin: 0 0 8px; font-size: 1.25rem; }
+    #status { margin: 6px 0 12px; opacity: .8; }
+    .row { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    #stationWrap { font-size: .95rem; }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background: #eee; margin-left: 8px; }
+    @media (prefers-color-scheme: dark) { .pill { background: #222; } }
+    #chart { width: 100%; height: 360px; }
+    @media (min-width: 900px) { #chart { height: 420px; } }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.93rem; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #ddd; text-align: left; white-space: nowrap; }
+    @media (prefers-color-scheme: dark) { th, td { border-bottom-color: #333; } }
+    .muted { opacity:.7; }
+  </style>
+</head>
+<body>
+<h1>Denver Barometric Pressure (last 72 hours)</h1>
+<div id="status">Loading…</div>
+<div id="stationWrap">Station: <span id="station" class="pill">—</span></div>
+
+<div id="chart" role="img" aria-label="Barometric pressure over time"></div>
+
+<table id="table">
+  <thead>
+  <tr>
+    <th>Time (UTC)</th>
+    <th>Pressure (inHg)</th>
+    <th class="muted">hPa</th>
+    <th class="muted">Raw (Pa)</th>
+  </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+  // -------- Utilities --------
+  const DENVER = { lat: 39.7392, lon: -104.9903 };
+  const statusEl = document.getElementById('status');
+  const stationEl = document.getElementById('station');
+  const tableBody = document.querySelector('#table tbody');
+
+  const toHpa  = pa => (pa == null ? null : pa / 100);
+  const toInHg = pa => (pa == null ? null : pa / 3386.389);
+
+  function setStatus(msg){ statusEl.textContent = msg; }
+  function isoNowMinus(hours){ return new Date(Date.now() - hours*3600*1000).toISOString(); }
+
+  // -------- Data fetch (no custom headers => no CORS preflight) --------
+  async function getNearestStation(lat, lon){
+    const pUrl = `https://api.weather.gov/points/${lat},${lon}`;
+    const r1 = await fetch(pUrl);
+    if(!r1.ok) throw new Error(`Points lookup failed: ${r1.status}`);
+    const j1 = await r1.json();
+
+    const listUrl = j1?.properties?.observationStations;
+    if(!listUrl) throw new Error("No observationStations link for the point.");
+
+    const r2 = await fetch(listUrl);
+    if(!r2.ok) throw new Error(`Stations list failed: ${r2.status}`);
+    const j2 = await r2.json();
+
+    // Take the first (closest) station
+    const id = j2?.features?.[0]?.properties?.stationIdentifier;
+    if(!id) throw new Error("No nearby stations found.");
+    return id;
+  }
+
+  async function getObservations(stationId, startIso, endIso){
+    // Request the time window explicitly
+    const url = `https://api.weather.gov/stations/${encodeURIComponent(stationId)}/observations?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
+    const r = await fetch(url);
+    if(!r.ok){
+      if(r.status === 429) throw new Error("429 rate-limited by NWS. Try a smaller range.");
+      throw new Error(`Observations failed: ${r.status}`);
+    }
+    const j = await r.json();
+    const feats = j?.features || [];
+
+    const rows = feats.map(f => {
+      const p = f?.properties || {};
+      const t = p?.timestamp ? new Date(p.timestamp) : null;
+      const pa = p?.barometricPressure?.value ?? null;
+      if(!t) return null;
+      return {
+        timeIso: t.toISOString(),
+        timeMs: t.getTime(),
+        Pa: pa,
+        hPa: pa != null ? toHpa(pa) : null,
+        inHg: pa != null ? toInHg(pa) : null
+      };
+    }).filter(Boolean);
+
+    // Ascending by time
+    rows.sort((a,b) => a.timeMs - b.timeMs);
+    return rows;
+  }
+
+  // -------- Table --------
+  function renderTable(rows){
+    tableBody.innerHTML = "";
+    for(const r of rows){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.timeIso}</td>
+        <td>${r.inHg != null ? r.inHg.toFixed(3) : "—"}</td>
+        <td class="muted">${r.hPa != null ? r.hPa.toFixed(1) : "—"}</td>
+        <td class="muted">${r.Pa ?? "—"}</td>
+      `;
+      tableBody.appendChild(tr);
+    }
+  }
+
+  // -------- Chart (Apache ECharts) --------
+  let chart;
+  function initChart(){
+    const el = document.getElementById('chart');
+    chart = echarts.init(el, null, { renderer: 'canvas' });
+
+    const opt = {
+      animation: false,
+      tooltip: {
+        trigger: 'axis',
+        valueFormatter: v => (v != null ? v.toFixed(3) + ' inHg' : '—'),
+        axisPointer: { type: 'cross' }
+      },
+      grid: { left: 48, right: 24, top: 20, bottom: 60 },
+      xAxis: {
+        type: 'time',
+        name: 'Time',
+        nameLocation: 'middle',
+        nameGap: 40,
+        axisLabel: { hideOverlap: true }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'inHg',
+        nameGap: 12,
+        // sensible defaults; will auto-tighten after data loads
+        min: 28.5,
+        max: 31.0,
+        scale: true
+      },
+      dataZoom: [
+        { type: 'inside', throttle: 50 },
+        { type: 'slider', height: 22, bottom: 24 }
+      ],
+      series: [{
+        name: 'Barometric Pressure',
+        type: 'line',
+        showSymbol: false,
+        connectNulls: true,
+        smooth: 0.15,
+        // placeholder; data set later
+        data: []
+      }]
+    };
+
+    chart.setOption(opt);
+    window.addEventListener('resize', () => chart.resize());
+  }
+
+  function updateChart(rows){
+    const points = rows
+            .filter(r => Number.isFinite(r.inHg))
+            .map(r => [r.timeMs, Number(r.inHg)]);
+
+    chart.setOption({
+      series: [{ data: points }]
+    });
+
+    if(points.length){
+      const vals = points.map(p => p[1]);
+      const minVal = Math.min(...vals);
+      const maxVal = Math.max(...vals);
+      const pad = Math.max((maxVal - minVal) * 0.1, 0.05); // at least a bit of padding
+      chart.setOption({
+        yAxis: { min: minVal - pad, max: maxVal + pad }
+      });
+    }
+  }
+
+  // -------- Main --------
+  async function main(){
+    try{
+      setStatus("Finding nearest station to Denver…");
+      const stationId = await getNearestStation(DENVER.lat, DENVER.lon);
+      stationEl.textContent = stationId;
+
+      const endIso = new Date().toISOString();
+      const startIso = isoNowMinus(72);
+
+      setStatus("Fetching observations…");
+      const rows = await getObservations(stationId, startIso, endIso);
+
+      renderTable(rows);
+      updateChart(rows);
+
+      const total = rows.length;
+      const withPressure = rows.filter(r => r.Pa != null).length;
+      setStatus(`Loaded ${total} observations (${withPressure} with barometricPressure). Pinch/drag to zoom.`);
+    } catch(err){
+      console.error(err);
+      setStatus(String(err));
+    }
+  }
+
+  initChart();
+  main();
+</script>
+</body>
+</html>
