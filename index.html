@@ -295,6 +295,14 @@
     const d = new Date(ms);
     return useLocalTime ? fmtLocal.format(d) : fmtUTC.format(d) + ' UTC';
   };
+  const fmtDayLocal = new Intl.DateTimeFormat(undefined, {
+    month:'short', day:'2-digit', weekday:'short'
+  });
+  const fmtDayUTC = new Intl.DateTimeFormat(undefined, {
+    month:'short', day:'2-digit', weekday:'short', timeZone:'UTC'
+  });
+  const fDay = ms => (useLocalTime ? fmtDayLocal : fmtDayUTC).format(new Date(ms));
+
   const setStatus = msg => { statusEl.textContent = msg; };
   const setDot = clr => { document.querySelector('.dot').style.background = clr; };
 
