@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Denver Barometric Pressure — Observed & Forecast</title>
+  <title>Denver Barometric Pressure — Observed • Historical • Forecast</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- ECharts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -14,8 +14,9 @@
       --border: rgba(255,255,255,.12);
       --fg: #e9eef6;
       --muted: #9aa3af;
-      --accent: #7dd3fc;
-      --accent-2: #a78bfa;  /* forecast accent */
+      --accent: #60a5fa;    /* Observed */
+      --accent-2: #22d3ee;  /* Historical */
+      --accent-3: #a78bfa;  /* Forecast */
       --ok: #34d399;
       --err: #ef4444;
       --warn: #f59e0b;
@@ -38,17 +39,14 @@
       margin: 0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       background:
-              radial-gradient(1200px 800px at 10% -10%, rgba(125,211,252,.25), transparent 60%),
-              radial-gradient(1200px 800px at 110% 10%, rgba(167,139,250,.25), transparent 60%),
+              radial-gradient(1200px 800px at 10% -10%, rgba(96,165,250,.25), transparent 60%),
+              radial-gradient(1200px 800px at 110% 10%, rgba(167,139,250,.22), transparent 60%),
               var(--bg);
       color: var(--fg);
       padding: clamp(14px, 3vw, 28px);
     }
     .wrap{ max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
-    h1{ margin: 0; font-weight: 700; font-size: clamp(1.1rem, 2.4vw, 1.5rem); letter-spacing: .2px; }
-
-    .row{ display:grid; gap: 10px; }
-    @media (min-width: 900px){ .row{ grid-template-columns: 1.05fr .95fr; } }
+    h1{ margin: 0; font-weight: 700; font-size: clamp(1.1rem, 2.4vw, 1.6rem); letter-spacing: .2px; }
 
     .card{
       background: var(--card);
@@ -68,32 +66,49 @@
     }
     .badge{ width:10px; height:10px; border-radius:999px; background: var(--ok); }
 
-    .toolbar{ display:flex; flex-wrap: wrap; gap:8px; align-items:center; }
-    .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .btn{
-      appearance:none; border:1px solid var(--border); background:var(--card);
-      color:var(--fg); padding:8px 12px; border-radius:12px; cursor:pointer; font-size:.92rem;
-      backdrop-filter: blur(6px);
+    /* Segmented control */
+    .seg{
+      display:inline-grid;
+      grid-auto-flow: column;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
     }
-    .btn:active{ transform: translateY(1px); }
-    .btn[aria-pressed="true"]{ outline: 2px solid color-mix(in hsl, var(--accent) 60%, transparent); }
+    .seg button{
+      appearance:none; border:1px solid var(--border); background:transparent;
+      color:var(--fg); padding:8px 12px; border-radius:10px; cursor:pointer; font-size:.92rem;
+    }
+    .seg button[aria-pressed="true"]{
+      background: color-mix(in hsl, var(--accent) 12%, var(--card));
+      outline: 2px solid color-mix(in hsl, var(--accent) 55%, transparent);
+    }
+    .seg [data-mode="observed"][aria-pressed="true"]{ outline-color: color-mix(in hsl, var(--accent) 55%, transparent) }
+    .seg [data-mode="historical"][aria-pressed="true"]{ outline-color: color-mix(in hsl, var(--accent-2) 55%, transparent) }
+    .seg [data-mode="forecast"][aria-pressed="true"]{ outline-color: color-mix(in hsl, var(--accent-3) 55%, transparent) }
 
-    .btn.chip{ padding:6px 10px; font-size:.9rem }
-    .btn.primary{ border-color: color-mix(in hsl, var(--accent) 50%, var(--border)); outline:1px solid color-mix(in hsl, var(--accent) 25%, transparent) }
-    .btn.forecast{ border-color: color-mix(in hsl, var(--accent-2) 50%, var(--border)); }
+    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
+    .toolbar .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 
     .inputs{
       display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:end;
     }
-    @media (max-width: 700px){
-      .inputs{ grid-template-columns: 1fr; }
-    }
+    @media (max-width: 780px){ .inputs{ grid-template-columns: 1fr; } }
     label{ font-size:.86rem; color:var(--muted); display:block; margin: 0 0 6px; }
     input[type="datetime-local"]{
       width: 100%;
       border:1px solid var(--border); background:var(--card); color:var(--fg);
       padding:10px 12px; border-radius:12px;
     }
+    .btn{
+      appearance:none; border:1px solid var(--border); background:var(--card);
+      color:var(--fg); padding:8px 12px; border-radius:12px; cursor:pointer; font-size:.92rem;
+      backdrop-filter: blur(6px);
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ border-color: color-mix(in hsl, var(--accent) 50%, var(--border)); }
+    .btn.chip{ padding:6px 10px; font-size:.9rem }
 
     .status{
       font-size: .95rem; color: var(--muted);
@@ -101,7 +116,7 @@
     }
     .dot{ width:8px; height:8px; border-radius:999px; background: var(--warn); }
 
-    #chart{ width:100%; height: clamp(320px, 45vh, 520px); border-radius: calc(var(--radius) - 6px); overflow:hidden; }
+    #chart{ width:100%; height: clamp(320px, 48vh, 560px); border-radius: calc(var(--radius) - 6px); overflow:hidden; }
 
     .table-card{ padding: 12px; }
     table{ width:100%; border-collapse: collapse; font-size: clamp(.86rem, 1.5vw, .95rem); }
@@ -112,17 +127,7 @@
     }
     tbody td{ padding:10px; border-bottom:1px solid var(--border); white-space:nowrap; }
     .muted{ color: var(--muted) }
-    .hide-sm{ }
-    @media (max-width:540px){ .hide-sm{ display:none } }
-
-    .legend{
-      display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:.9rem; color:var(--muted); margin-top: 4px;
-    }
-    .swatch{
-      width: 10px; height: 10px; border-radius: 999px; display:inline-block;
-    }
-    .sw-obs{ background:#60a5fa }
-    .sw-fore{ background:#a78bfa }
+    .hide-sm{ } @media (max-width:540px){ .hide-sm{ display:none } }
   </style>
 </head>
 <body>
@@ -134,13 +139,18 @@
       <span class="pill">Updated: <span id="updated">—</span></span>
       <span class="pill">Points: <span id="count">—</span></span>
     </div>
-    <div class="toolbar" style="margin-top:8px">
-      <div class="group">
+
+    <div class="toolbar" style="margin-top:10px">
+      <div class="seg" role="tablist" aria-label="Data Source">
+        <button class="btn" role="tab" data-mode="observed"  aria-pressed="true"  title="Recent observations (weather.gov)">Observed</button>
+        <button class="btn" role="tab" data-mode="historical" aria-pressed="false" title="Historical ASOS via IEM">Historical</button>
+        <button class="btn" role="tab" data-mode="forecast"  aria-pressed="false" title="Forecast grid pressure">Forecast</button>
+      </div>
+      <div class="right">
         <button id="toggleTime" class="btn chip" type="button" aria-pressed="true" title="Toggle UTC vs Local">Dates: Local</button>
-        <span class="legend">
-          <span><span class="swatch sw-obs"></span> Observed</span>
-          <span><span class="swatch sw-fore"></span> Forecast</span>
-        </span>
+        <button class="btn chip" data-quick="24" type="button">Last 24h</button>
+        <button class="btn chip" data-quick="48" type="button">Last 48h</button>
+        <button class="btn chip" data-quick="72" type="button">Last 72h</button>
       </div>
     </div>
   </header>
@@ -158,18 +168,7 @@
       </div>
       <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap">
         <button id="apply" class="btn primary" type="button" title="Apply custom range">Apply</button>
-        <button class="btn chip" data-quick="24" type="button">Last 24h</button>
-        <button class="btn chip" data-quick="48" type="button">Last 48h</button>
-        <button class="btn chip" data-quick="72" type="button">Last 72h</button>
       </div>
-    </div>
-
-    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
-      <strong style="font-size:.92rem">Forecast:</strong>
-      <button class="btn chip forecast" data-forecast="24" type="button">Next 24h</button>
-      <button class="btn chip forecast" data-forecast="48" type="button">Next 48h</button>
-      <button class="btn chip forecast" data-forecast="72" type="button">Next 72h</button>
-      <button id="toggleForecast" class="btn chip forecast" type="button" aria-pressed="true" title="Show/hide forecast overlay">Overlay On</button>
     </div>
   </section>
 
@@ -179,20 +178,19 @@
     <div id="chart" role="img" aria-label="Line chart of barometric pressure"></div>
   </section>
 
-  <section class="row">
-    <section class="card table-card" aria-label="Observed data table">
-      <table id="table">
-        <thead>
-        <tr>
-          <th>Time</th>
-          <th>Pressure (inHg)</th>
-          <th class="muted hide-sm">hPa</th>
-          <th class="muted hide-sm">Raw (Pa)</th>
-        </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
+  <section class="card table-card" aria-label="Data table">
+    <table id="table">
+      <thead>
+      <tr>
+        <th>Time</th>
+        <th>Pressure (inHg)</th>
+        <th class="muted hide-sm">hPa</th>
+        <th class="muted hide-sm">Raw</th>
+        <th class="muted hide-sm">Source</th>
+      </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </section>
 </div>
 
@@ -205,17 +203,18 @@
   const countEl   = document.getElementById('count');
   const tableBody = document.querySelector('#table tbody');
   const toggleBtn = document.getElementById('toggleTime');
-  const toggleForecastBtn = document.getElementById('toggleForecast');
   const applyBtn  = document.getElementById('apply');
   const startInp  = document.getElementById('start');
   const endInp    = document.getElementById('end');
   const quickBtns = Array.from(document.querySelectorAll('button[data-quick]'));
-  const forecastBtns = Array.from(document.querySelectorAll('button[data-forecast]'));
-  let overlayForecast = true;
+  const modeTabs  = Array.from(document.querySelectorAll('.seg [data-mode]'));
 
-  // ---------- Units / helpers ----------
+  let currentMode = 'observed'; // 'observed' | 'historical' | 'forecast'
+
+  // ---------- Time / Units ----------
   const toHpa  = pa => (pa == null ? null : pa / 100);
   const toInHgFromPa = pa => (pa == null ? null : pa / 3386.389);
+  const inHgFromHpa = hpa => (hpa == null ? null : hpa / 33.86389);
 
   let useLocalTime = true;
   const fmtLocal = new Intl.DateTimeFormat(undefined, {
@@ -232,10 +231,11 @@
     return useLocalTime ? fmtLocal.format(d) : fmtUTC.format(d) + ' UTC';
   };
   const setStatus = msg => { statusEl.textContent = msg; };
+  const setDot = clr => { document.querySelector('.dot').style.background = clr; };
 
   const isoNowMinus = hours => new Date(Date.now() - hours*3600*1000).toISOString();
 
-  // datetime-local utilities
+  // datetime-local helpers
   const pad2 = n => String(n).padStart(2, '0');
   function toLocalInputValue(d){
     const y=d.getFullYear(), m=pad2(d.getMonth()+1), day=pad2(d.getDate()),
@@ -243,15 +243,16 @@
     return `${y}-${m}-${day}T${h}:${min}`;
   }
   function fromLocalInputValue(v){
-    // Create Date in local time from "YYYY-MM-DDTHH:MM"
+    if(!v) return null;
     const [date, time] = v.split('T');
     const [Y,M,D] = date.split('-').map(Number);
     const [h,mi] = time.split(':').map(Number);
     return new Date(Y, M-1, D, h, mi, 0, 0);
   }
 
-  // ---------- Fetch (no custom headers => no CORS preflight) ----------
+  // ---------- Data sources ----------
   async function getNearestStation(lat, lon){
+    // weather.gov -> observationStations (for recent) and a likely ICAO ID for IEM
     const r1 = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
     if(!r1.ok) throw new Error(`Points lookup failed: ${r1.status}`);
     const j1 = await r1.json();
@@ -265,7 +266,8 @@
     return { stationId: id, pointsMeta: j1?.properties || {} };
   }
 
-  async function getObservations(stationId, startIso, endIso){
+  // Recent observations (days): weather.gov
+  async function getObserved(stationId, startIso, endIso){
     const url = `https://api.weather.gov/stations/${encodeURIComponent(stationId)}/observations?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
     const r = await fetch(url);
     if(!r.ok){
@@ -280,68 +282,142 @@
       const pa = p?.barometricPressure?.value ?? null;
       if(!t) return null;
       return {
+        source: 'NWS',
         timeIso: t.toISOString(),
         timeMs: t.getTime(),
         Pa: pa,
         hPa: pa != null ? toHpa(pa) : null,
-        inHg: pa != null ? toInHgFromPa(pa) : null
+        inHg: pa != null ? toInHgFromPa(pa) : null,
+        raw: pa
       };
     }).filter(Boolean);
     rows.sort((a,b) => a.timeMs - b.timeMs);
     return rows;
   }
 
-  // Forecast Grid (pressure layer). The gridpoint docs list "pressure" as a layer (forecast). See:
-  // https://weather-gov.github.io/api/gridpoints  (pressure layer)
+  // Historical observations (months/years): IEM ASOS CSV (no key, no headers)
+  // We'll request altimeter (alti, in inches of mercury) and mslp (hPa) as fallback.
+  async function getHistoricalIEM(icao, startDate, endDate){
+    // IEM expects date parts and whole-day ranges. We'll request inclusive whole days bounding the user range.
+    const s = new Date(startDate), e = new Date(endDate);
+    const sy = s.getUTCFullYear(), sm = s.getUTCMonth()+1, sd = s.getUTCDate();
+    const ey = e.getUTCFullYear(), em = e.getUTCMonth()+1, ed = e.getUTCDate();
+
+    const params = new URLSearchParams({
+      station: icao,
+      data: 'alti',
+      'data': 'mslp',   // repeated key appends; but URLSearchParams overwrites, so we add manually below
+      tz: 'UTC',
+      format: 'onlycomma',
+      latlon: 'no',
+      year1: String(sy), month1: String(sm), day1: String(sd),
+      year2: String(ey), month2: String(em), day2: String(ed),
+      // time window the whole day to be safe (we'll clip later)
+      time: '0:00-23:59'
+    });
+    // Manually ensure both data parameters exist
+    const base = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py';
+    const url = `${base}?station=${encodeURIComponent(icao)}&data=alti&data=mslp&tz=UTC&format=onlycomma&latlon=no&year1=${sy}&month1=${sm}&day1=${sd}&year2=${ey}&month2=${em}&day2=${ed}&time=0:00-23:59`;
+
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`IEM ASOS request failed: ${r.status}`);
+    const txt = await r.text();
+    // CSV "station,valid,alti,mslp"
+    const lines = txt.trim().split(/\r?\n/);
+    const out = [];
+    let header = null;
+    for(const line of lines){
+      if(!line) continue;
+      const cols = line.split(',');
+      if(!header){
+        header = cols.map(c => c.trim().toLowerCase());
+        continue;
+      }
+      const rec = {};
+      header.forEach((h,i)=> rec[h] = cols[i] === '' ? null : cols[i]);
+      const t = rec.valid ? new Date(rec.valid + 'Z') : null; // UTC
+      if(!t || isNaN(t)) continue;
+
+      // Use altimeter first (already in inches). If missing, use mslp (hPa -> inHg).
+      const alti = rec.alti != null ? parseFloat(rec.alti) : null;
+      const mslp = rec.mslp != null ? parseFloat(rec.mslp) : null;
+      const inHg = Number.isFinite(alti) ? alti : (Number.isFinite(mslp) ? inHgFromHpa(mslp) : null);
+
+      const row = {
+        source: 'IEM',
+        timeIso: t.toISOString(),
+        timeMs: t.getTime(),
+        Pa: Number.isFinite(mslp) ? mslp*100 : null,
+        hPa: Number.isFinite(mslp) ? mslp : null,
+        inHg: Number.isFinite(inHg) ? inHg : null,
+        raw: Number.isFinite(alti) ? alti : (Number.isFinite(mslp) ? mslp : null)
+      };
+      out.push(row);
+    }
+    // Clip to requested precise time window (not just whole-day)
+    const clipStart = new Date(startDate).getTime();
+    const clipEnd   = new Date(endDate).getTime();
+    const clipped = out.filter(r => r.timeMs >= clipStart && r.timeMs <= clipEnd);
+    clipped.sort((a,b)=>a.timeMs-b.timeMs);
+    return clipped;
+  }
+
+  // Forecast grid (fixed: auto-detect pressure-like field & convert units)
   async function getForecastPressure(lat, lon){
-    // 1) points -> forecastGridData URL
     const r = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
     if(!r.ok) throw new Error(`Points lookup failed: ${r.status}`);
     const j = await r.json();
     const gridUrl = j?.properties?.forecastGridData;
     if(!gridUrl) throw new Error("No forecastGridData link for this point.");
-    // 2) gridpoints -> properties.pressure
+
     const r2 = await fetch(gridUrl);
     if(!r2.ok) throw new Error(`Gridpoints failed: ${r2.status}`);
     const g = await r2.json();
-    const layer = g?.properties?.pressure;
-    if(!layer || !Array.isArray(layer.values)) throw new Error("No pressure layer available from gridpoints.");
-    const uom = (layer.uom || '').toLowerCase(); // often 'unit:Pa'
-    // Convert helper for forecast values
-    const conv = (val) => {
+
+    // Try these in order
+    const candidates = ['seaLevelPressure', 'pressure', 'pressureReducedToMeanSeaLevel'];
+    const available = Object.keys(g?.properties || {});
+    const foundKey = candidates.find(k => g?.properties?.[k]?.values?.length);
+
+    if(!foundKey){
+      throw new Error(`Forecast pressure not found for this gridpoint. Available fields: ${available.slice(0,30).join(', ')}`);
+    }
+
+    const layer = g.properties[foundKey];
+    const uom = (layer.uom || '').toLowerCase(); // 'unit:Pa' or 'unit:hPa' etc.
+
+    const toInHg = (val) => {
       if(val == null) return null;
-      if(uom.includes('pa')) return toInHgFromPa(val);
-      if(uom.includes('hpa')) return val / 33.86389; // hPa -> inHg
+      if(uom.includes('hpa')) return inHgFromHpa(val);
       if(uom.includes('inhg')) return val;
-      // fallback assume Pascals
+      // default assume Pa
       return toInHgFromPa(val);
     };
-    // Each element has validTime like "2025-10-16T00:00:00+00:00/PT1H"
+
     const rows = [];
     for(const v of layer.values){
       const vt = v.validTime; // "start/Duration"
       if(!vt) continue;
-      const [startStr, durStr] = vt.split('/');
-      const start = new Date(startStr);
-      if(!isFinite(start)) continue;
-      // For charting, sample the value at the interval start
+      const [startStr] = vt.split('/');
+      const t = new Date(startStr);
+      if(!isFinite(t)) continue;
       rows.push({
-        timeIso: start.toISOString(),
-        timeMs: start.getTime(),
-        inHg: conv(v.value),
-        // derive companion units for tooltips/table (optional)
-        hPa: v.value == null ? null :
-                (uom.includes('hpa') ? v.value : uom.includes('pa') ? (v.value/100) :
-                        uom.includes('inhg') ? (v.value*33.86389) : null),
-        Pa: uom.includes('pa') ? v.value : (uom.includes('hpa') ? v.value*100 : (uom.includes('inhg') ? v.value*3386.389 : null))
+        source: `NWS-Grid:${foundKey}`,
+        timeIso: t.toISOString(),
+        timeMs: t.getTime(),
+        Pa: uom.includes('hpa') ? v.value*100 : (uom.includes('inhg') ? v.value*3386.389 : v.value),
+        hPa: uom.includes('hpa') ? v.value : (uom.includes('inhg') ? v.value*33.86389 : (uom.includes('pa') ? v.value/100 : null)),
+        inHg: toInHg(v.value),
+        raw: v.value
       });
     }
     rows.sort((a,b)=>a.timeMs-b.timeMs);
     return rows;
   }
 
-  // ---------- Table ----------
-  let lastObsRows = [];
+  // ---------- Table / Chart ----------
+  let lastRows = [];
+
   function renderTable(rows){
     tableBody.innerHTML = "";
     const frag = document.createDocumentFragment();
@@ -351,23 +427,21 @@
         <td>${fDate(r.timeMs)}</td>
         <td>${Number.isFinite(r.inHg) ? r.inHg.toFixed(3) : "—"}</td>
         <td class="muted hide-sm">${Number.isFinite(r.hPa) ? r.hPa.toFixed(1) : "—"}</td>
-        <td class="muted hide-sm">${r.Pa ?? "—"}</td>
+        <td class="muted hide-sm">${r.raw ?? "—"}</td>
+        <td class="muted hide-sm">${r.source}</td>
       `;
       frag.appendChild(tr);
     }
     tableBody.appendChild(frag);
   }
 
-  // ---------- Chart ----------
   let chart;
-  let forecastRowsCache = null;
-
   function initChart(){
     chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
     const isSmall = matchMedia('(max-width: 540px)').matches;
     chart.setOption({
       animation: false,
-      color: ['#60a5fa', '#a78bfa'],
+      color: ['var(--accent)', 'var(--accent-2)', 'var(--accent-3)'],
       grid: { left: 52, right: 22, top: 12, bottom: isSmall ? 58 : 64 },
       tooltip: {
         trigger: 'axis',
@@ -414,18 +488,8 @@
           showSymbol: false,
           connectNulls: true,
           smooth: 0.18,
-          lineStyle: { width: 2.4 },
-          areaStyle: { opacity: .15 },
-          data: []
-        },
-        {
-          type: 'line',
-          name: 'Forecast',
-          showSymbol: false,
-          connectNulls: true,
-          smooth: 0.18,
-          lineStyle: { width: 2.2, type: 'dashed' },
-          areaStyle: { opacity: .08 },
+          lineStyle: { width: 2.6 },
+          areaStyle: { opacity: .14 },
           data: []
         }
       ]
@@ -433,22 +497,19 @@
     window.addEventListener('resize', () => chart.resize());
   }
 
-  function setSeries(obsPts, forePts){
+  function setSeries(name, rows){
+    const pts = rows.filter(r => Number.isFinite(r.inHg)).map(r => [r.timeMs, +r.inHg]);
     chart.setOption({
-      series: [
-        { name: 'Observed', data: obsPts },
-        { name: 'Forecast', data: overlayForecast ? forePts : [] }
-      ]
+      series: [{ name, data: pts, areaStyle: { opacity: .14 }, lineStyle: { width: 2.6 } }],
+      color: [name === 'Observed' ? getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+              : name === 'Historical' ? getComputedStyle(document.documentElement).getPropertyValue('--accent-2').trim()
+                      : getComputedStyle(document.documentElement).getPropertyValue('--accent-3').trim()]
     });
-    // autoscale Y to observed+forecast if present
-    const all = [...obsPts, ...(overlayForecast ? forePts : [])];
-    if(all.length){
-      const vals = all.map(p => p[1]).filter(Number.isFinite);
-      if(vals.length){
-        const minVal = Math.min(...vals), maxVal = Math.max(...vals);
-        const pad = Math.max((maxVal - minVal) * 0.12, 0.05);
-        chart.setOption({ yAxis: { min: minVal - pad, max: maxVal + pad } });
-      }
+    if(pts.length){
+      const ys = pts.map(p=>p[1]);
+      const minVal = Math.min(...ys), maxVal = Math.max(...ys);
+      const pad = Math.max((maxVal - minVal) * 0.12, 0.05);
+      chart.setOption({ yAxis: { min: minVal - pad, max: maxVal + pad } });
     }
   }
 
@@ -461,69 +522,77 @@
   let stationId = null;
   let pointsMeta = null;
 
-  async function loadObserved(startIso, endIso){
-    setStatus("Fetching observations…");
-    const obs = await getObservations(stationId, startIso, endIso);
-    lastObsRows = obs;
-    countEl.textContent = obs.length;
-    updatedEl.textContent = fmtUpdated.format(new Date());
-    renderTable(obs);
-    return obs;
+  async function loadObservedRange(startIso, endIso){
+    setStatus("Fetching recent observations (weather.gov) …");
+    const rows = await getObserved(stationId, startIso, endIso);
+    return rows;
   }
 
-  async function ensureForecast(){
-    if(forecastRowsCache) return forecastRowsCache;
+  async function loadHistoricalRange(startIso, endIso){
+    setStatus("Fetching historical (IEM ASOS) …");
+    // IEM wants ICAO like KDEN; stationId from weather.gov typically is ICAO already.
+    const rows = await getHistoricalIEM(stationId, startIso, endIso);
+    return rows;
+  }
+
+  async function loadForecastRange(startIso, endIso){
     setStatus("Fetching forecast grid (pressure) …");
-    forecastRowsCache = await getForecastPressure(DENVER.lat, DENVER.lon);
-    return forecastRowsCache;
+    const all = await getForecastPressure(DENVER.lat, DENVER.lon);
+    // clip to custom range if user provided one (useful if they pick "next 48h")
+    const s = new Date(startIso).getTime(), e = new Date(endIso).getTime();
+    return all.filter(r => r.timeMs >= s && r.timeMs <= e);
   }
 
-  function filterForecastByNextHours(rows, hours){
-    const now = Date.now();
-    const end = now + hours*3600*1000;
-    return rows.filter(r => r.timeMs >= now && r.timeMs <= end);
+  async function applyRange(){
+    try{
+      const sDate = fromLocalInputValue(startInp.value);
+      const eDate = fromLocalInputValue(endInp.value);
+      if(!(sDate && eDate) || isNaN(sDate) || isNaN(eDate) || sDate >= eDate){
+        throw new Error("Please select a valid start and end.");
+      }
+      const sIso = sDate.toISOString();
+      const eIso = eDate.toISOString();
+
+      let rows = [];
+      if(currentMode === 'observed'){
+        rows = await loadObservedRange(sIso, eIso);
+      }else if(currentMode === 'historical'){
+        rows = await loadHistoricalRange(sIso, eIso);
+      }else{
+        rows = await loadForecastRange(sIso, eIso);
+      }
+
+      lastRows = rows;
+      countEl.textContent = rows.length;
+      updatedEl.textContent = fmtUpdated.format(new Date());
+      renderTable(rows);
+      setSeries(
+              currentMode === 'observed' ? 'Observed' :
+                      currentMode === 'historical' ? 'Historical' : 'Forecast',
+              rows
+      );
+      setStatus(`Loaded ${rows.length} points.`);
+      setDot('var(--ok)');
+    }catch(err){
+      console.error(err);
+      setStatus(String(err));
+      setDot('var(--err)');
+      lastRows = [];
+      renderTable([]);
+      setSeries('Observed', []);
+    }
   }
 
-  function pointsFromRows(rows){ return rows.filter(r=>Number.isFinite(r.inHg)).map(r=>[r.timeMs, +r.inHg]); }
-
-  // ---------- Event handlers ----------
+  // ---------- UI events ----------
   toggleBtn.addEventListener('click', () => {
     useLocalTime = !useLocalTime;
     toggleBtn.setAttribute('aria-pressed', String(useLocalTime));
     toggleBtn.textContent = 'Dates: ' + (useLocalTime ? 'Local' : 'UTC');
-    renderTable(lastObsRows);
+    renderTable(lastRows);
     refreshXAxisLabels();
   });
 
-  toggleForecastBtn.addEventListener('click', () => {
-    overlayForecast = !overlayForecast;
-    toggleForecastBtn.setAttribute('aria-pressed', String(overlayForecast));
-    toggleForecastBtn.textContent = overlayForecast ? 'Overlay On' : 'Overlay Off';
-    // Re-apply with latest data on chart
-    const obsPts = pointsFromRows(lastObsRows);
-    const forePts = forecastRowsCache ? pointsFromRows(forecastRowsCache) : [];
-    setSeries(obsPts, forePts);
-  });
-
-  applyBtn.addEventListener('click', async () => {
-    try{
-      const s = fromLocalInputValue(startInp.value);
-      const e = fromLocalInputValue(endInp.value);
-      if(!(s instanceof Date) || !(e instanceof Date) || isNaN(s) || isNaN(e) || s >= e){
-        throw new Error("Please select a valid start/end.");
-      }
-      const obs = await loadObserved(s.toISOString(), e.toISOString());
-      const obsPts = pointsFromRows(obs);
-      const forePts = forecastRowsCache ? pointsFromRows(forecastRowsCache) : [];
-      setSeries(obsPts, forePts);
-      setStatus(`Loaded ${obs.length} observations.`);
-      document.querySelector('.dot').style.background = 'var(--ok)';
-    }catch(err){
-      console.error(err);
-      setStatus(String(err));
-      document.querySelector('.dot').style.background = 'var(--err)';
-    }
-  });
+  applyBtn.addEventListener('click', applyRange);
 
   quickBtns.forEach(b => b.addEventListener('click', async (e) => {
     const hrs = Number(e.currentTarget.dataset.quick);
@@ -531,25 +600,27 @@
     const start = new Date(Date.now() - hrs*3600*1000);
     startInp.value = toLocalInputValue(start);
     endInp.value = toLocalInputValue(end);
-    applyBtn.click();
+    currentMode = 'observed';
+    setPressed('observed');
+    applyRange();
   }));
 
-  forecastBtns.forEach(b => b.addEventListener('click', async (e) => {
-    try{
-      const hrs = Number(e.currentTarget.dataset.forecast);
-      const f = await ensureForecast();
-      const fwin = filterForecastByNextHours(f, hrs);
-      const obsPts = pointsFromRows(lastObsRows);
-      const forePts = pointsFromRows(fwin);
-      setSeries(obsPts, forePts);
-      setStatus(`Forecast loaded (${hrs}h). Observed overlay ${overlayForecast ? 'on' : 'off'}.`);
-      document.querySelector('.dot').style.background = 'var(--ok)';
-    }catch(err){
-      console.error(err);
-      setStatus(String(err));
-      document.querySelector('.dot').style.background = 'var(--err)';
+  modeTabs.forEach(btn => btn.addEventListener('click', () => {
+    currentMode = btn.dataset.mode;
+    setPressed(currentMode);
+    // If user switches to Forecast and picked a past window, auto-switch to next 48h
+    if(currentMode === 'forecast'){
+      const start = new Date();
+      const end = new Date(Date.now() + 48*3600*1000);
+      startInp.value = toLocalInputValue(start);
+      endInp.value = toLocalInputValue(end);
     }
+    applyRange();
   }));
+
+  function setPressed(mode){
+    modeTabs.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  }
 
   // ---------- Bootstrap ----------
   function defaultRange(){
@@ -563,30 +634,19 @@
     try{
       setStatus("Finding nearest station to Denver…");
       const meta = await getNearestStation(DENVER.lat, DENVER.lon);
-      stationId  = meta.stationId;
+      stationId  = meta.stationId;       // e.g., KDEN
       pointsMeta = meta.pointsMeta;
       stationEl.textContent = stationId;
 
       defaultRange();
-      const s = fromLocalInputValue(startInp.value);
-      const e = fromLocalInputValue(endInp.value);
-
-      setStatus("Initializing chart…");
       initChart();
 
-      const obs = await loadObserved(s.toISOString(), e.toISOString());
-      const obsPts = pointsFromRows(obs);
-      setSeries(obsPts, []);
-      setStatus(`Loaded ${obs.length} observations. Pinch/drag to zoom. Forecast options available below.`);
-
-      // Warm the forecast cache in the background (no headers to avoid preflight)
-      ensureForecast().catch(()=>{ /* ignore forecast errors for now */ });
-
-      document.querySelector('.dot').style.background = 'var(--ok)';
+      // Initial draw (Observed, last 72h)
+      await applyRange();
     }catch(err){
       console.error(err);
       setStatus(String(err));
-      document.querySelector('.dot').style.background = 'var(--err)';
+      setDot('var(--err)');
     }
   }
 
