@@ -306,39 +306,32 @@
     const params = new URLSearchParams({
       station: icao,
       data: 'alti',
-      'data': 'mslp',   // repeated key appends; but URLSearchParams overwrites, so we add manually below
+      'data': 'mslp',
       tz: 'UTC',
       format: 'onlycomma',
       latlon: 'no',
       year1: String(sy), month1: String(sm), day1: String(sd),
       year2: String(ey), month2: String(em), day2: String(ed),
-      // time window the whole day to be safe (we'll clip later)
       time: '0:00-23:59'
     });
-    // Manually ensure both data parameters exist
     const base = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py';
     const url = `${base}?station=${encodeURIComponent(icao)}&data=alti&data=mslp&tz=UTC&format=onlycomma&latlon=no&year1=${sy}&month1=${sm}&day1=${sd}&year2=${ey}&month2=${em}&day2=${ed}&time=0:00-23:59`;
 
     const r = await fetch(url);
     if(!r.ok) throw new Error(`IEM ASOS request failed: ${r.status}`);
     const txt = await r.text();
-    // CSV "station,valid,alti,mslp"
     const lines = txt.trim().split(/\r?\n/);
     const out = [];
     let header = null;
     for(const line of lines){
       if(!line) continue;
       const cols = line.split(',');
-      if(!header){
-        header = cols.map(c => c.trim().toLowerCase());
-        continue;
-      }
+      if(!header){ header = cols.map(c => c.trim().toLowerCase()); continue; }
       const rec = {};
       header.forEach((h,i)=> rec[h] = cols[i] === '' ? null : cols[i]);
       const t = rec.valid ? new Date(rec.valid + 'Z') : null; // UTC
       if(!t || isNaN(t)) continue;
 
-      // Use altimeter first (already in inches). If missing, use mslp (hPa -> inHg).
       const alti = rec.alti != null ? parseFloat(rec.alti) : null;
       const mslp = rec.mslp != null ? parseFloat(rec.mslp) : null;
       const inHg = Number.isFinite(alti) ? alti : (Number.isFinite(mslp) ? inHgFromHpa(mslp) : null);
@@ -354,7 +347,6 @@
       };
       out.push(row);
     }
-    // Clip to requested precise time window (not just whole-day)
     const clipStart = new Date(startDate).getTime();
     const clipEnd   = new Date(endDate).getTime();
     const clipped = out.filter(r => r.timeMs >= clipStart && r.timeMs <= clipEnd);
@@ -362,57 +354,47 @@
     return clipped;
   }
 
-  // Forecast grid (fixed: auto-detect pressure-like field & convert units)
+  // Forecast (Open-Meteo: hourly mean sea level pressure -> inHg)
   async function getForecastPressure(lat, lon){
-    const r = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
-    if(!r.ok) throw new Error(`Points lookup failed: ${r.status}`);
+    // Build range so we don't download tons of unused hours
+    const sDate = fromLocalInputValue(startInp.value) || new Date();
+    const eDate = fromLocalInputValue(endInp.value)   || new Date(Date.now() + 48*3600*1000);
+
+    // Open-Meteo returns ISO time array + pressure_msl (hPa). No key, CORS OK.
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+            `&hourly=pressure_msl&timezone=auto` +
+            `&start_date=${sDate.toISOString().slice(0,10)}&end_date=${eDate.toISOString().slice(0,10)}`;
+
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`Forecast fetch failed: ${r.status}`);
     const j = await r.json();
-    const gridUrl = j?.properties?.forecastGridData;
-    if(!gridUrl) throw new Error("No forecastGridData link for this point.");
 
-    const r2 = await fetch(gridUrl);
-    if(!r2.ok) throw new Error(`Gridpoints failed: ${r2.status}`);
-    const g = await r2.json();
-
-    // Try these in order
-    const candidates = ['seaLevelPressure', 'pressure', 'pressureReducedToMeanSeaLevel'];
-    const available = Object.keys(g?.properties || {});
-    const foundKey = candidates.find(k => g?.properties?.[k]?.values?.length);
-
-    if(!foundKey){
-      throw new Error(`Forecast pressure not found for this gridpoint. Available fields: ${available.slice(0,30).join(', ')}`);
-    }
-
-    const layer = g.properties[foundKey];
-    const uom = (layer.uom || '').toLowerCase(); // 'unit:Pa' or 'unit:hPa' etc.
-
-    const toInHg = (val) => {
-      if(val == null) return null;
-      if(uom.includes('hpa')) return inHgFromHpa(val);
-      if(uom.includes('inhg')) return val;
-      // default assume Pa
-      return toInHgFromPa(val);
-    };
+    const times = j?.hourly?.time || [];
+    const pres  = j?.hourly?.pressure_msl || [];
+    if(!times.length || !pres.length) throw new Error("Forecast pressure not available from provider.");
 
     const rows = [];
-    for(const v of layer.values){
-      const vt = v.validTime; // "start/Duration"
-      if(!vt) continue;
-      const [startStr] = vt.split('/');
-      const t = new Date(startStr);
+    for(let i=0;i<times.length;i++){
+      const t = new Date(times[i]);
       if(!isFinite(t)) continue;
+      const hPa = pres[i];
+      const inHg = inHgFromHpa(hPa);
       rows.push({
-        source: `NWS-Grid:${foundKey}`,
+        source: 'Open-Meteo:pressure_msl',
         timeIso: t.toISOString(),
         timeMs: t.getTime(),
-        Pa: uom.includes('hpa') ? v.value*100 : (uom.includes('inhg') ? v.value*3386.389 : v.value),
-        hPa: uom.includes('hpa') ? v.value : (uom.includes('inhg') ? v.value*33.86389 : (uom.includes('pa') ? v.value/100 : null)),
-        inHg: toInHg(v.value),
-        raw: v.value
+        Pa: Number.isFinite(hPa) ? hPa*100 : null,
+        hPa: Number.isFinite(hPa) ? hPa : null,
+        inHg: Number.isFinite(inHg) ? inHg : null,
+        raw: hPa
       });
     }
-    rows.sort((a,b)=>a.timeMs-b.timeMs);
-    return rows;
+
+    // clip to exact datetime picker window
+    const s = sDate.getTime(), e = eDate.getTime();
+    const clipped = rows.filter(r => r.timeMs >= s && r.timeMs <= e);
+    clipped.sort((a,b)=>a.timeMs-b.timeMs);
+    return clipped;
   }
 
   // ---------- Table / Chart ----------
@@ -530,15 +512,14 @@
 
   async function loadHistoricalRange(startIso, endIso){
     setStatus("Fetching historical (IEM ASOS) …");
-    // IEM wants ICAO like KDEN; stationId from weather.gov typically is ICAO already.
     const rows = await getHistoricalIEM(stationId, startIso, endIso);
     return rows;
   }
 
   async function loadForecastRange(startIso, endIso){
-    setStatus("Fetching forecast grid (pressure) …");
+    setStatus("Fetching forecast (Open-Meteo) …");
     const all = await getForecastPressure(DENVER.lat, DENVER.lon);
-    // clip to custom range if user provided one (useful if they pick "next 48h")
+    // clip to custom range (getForecastPressure already clips, but this is harmless)
     const s = new Date(startIso).getTime(), e = new Date(endIso).getTime();
     return all.filter(r => r.timeMs >= s && r.timeMs <= e);
   }
