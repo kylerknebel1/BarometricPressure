@@ -2,82 +2,270 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Denver Barometric Pressure (NWS) — ECharts</title>
+  <title>Denver Barometric Pressure — Observed & Forecast</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- ECharts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; }
-    h1 { margin: 0 0 8px; font-size: 1.25rem; }
-    #status { margin: 6px 0 12px; opacity: .8; }
-    .row { display: grid; grid-template-columns: 1fr; gap: 14px; }
-    #stationWrap { font-size: .95rem; }
-    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background: #eee; margin-left: 8px; }
-    @media (prefers-color-scheme: dark) { .pill { background: #222; } }
-    #chart { width: 100%; height: 360px; }
-    @media (min-width: 900px) { #chart { height: 420px; } }
+    :root{
+      color-scheme: light dark;
+      --bg: #0b0c10;
+      --card: rgba(255,255,255,.06);
+      --border: rgba(255,255,255,.12);
+      --fg: #e9eef6;
+      --muted: #9aa3af;
+      --accent: #7dd3fc;
+      --accent-2: #a78bfa;  /* forecast accent */
+      --ok: #34d399;
+      --err: #ef4444;
+      --warn: #f59e0b;
+      --radius: 18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg: #f8fafc;
+        --card: #ffffffcc;
+        --border: rgba(15,23,42,.08);
+        --fg: #0f172a;
+        --muted: #475569;
+        --shadow: 0 12px 24px rgba(2,6,23,.08);
+      }
+    }
+    *{ box-sizing: border-box }
+    html, body{ height:100% }
+    body{
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background:
+              radial-gradient(1200px 800px at 10% -10%, rgba(125,211,252,.25), transparent 60%),
+              radial-gradient(1200px 800px at 110% 10%, rgba(167,139,250,.25), transparent 60%),
+              var(--bg);
+      color: var(--fg);
+      padding: clamp(14px, 3vw, 28px);
+    }
+    .wrap{ max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+    h1{ margin: 0; font-weight: 700; font-size: clamp(1.1rem, 2.4vw, 1.5rem); letter-spacing: .2px; }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.93rem; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid #ddd; text-align: left; white-space: nowrap; }
-    @media (prefers-color-scheme: dark) { th, td { border-bottom-color: #333; } }
-    .muted { opacity:.7; }
+    .row{ display:grid; gap: 10px; }
+    @media (min-width: 900px){ .row{ grid-template-columns: 1.05fr .95fr; } }
+
+    .card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .pad{ padding: 12px; }
+
+    .sub{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:.95rem; color:var(--muted); }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 6px 10px; border-radius: 999px;
+      background: var(--card); border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+    .badge{ width:10px; height:10px; border-radius:999px; background: var(--ok); }
+
+    .toolbar{ display:flex; flex-wrap: wrap; gap:8px; align-items:center; }
+    .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .btn{
+      appearance:none; border:1px solid var(--border); background:var(--card);
+      color:var(--fg); padding:8px 12px; border-radius:12px; cursor:pointer; font-size:.92rem;
+      backdrop-filter: blur(6px);
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn[aria-pressed="true"]{ outline: 2px solid color-mix(in hsl, var(--accent) 60%, transparent); }
+
+    .btn.chip{ padding:6px 10px; font-size:.9rem }
+    .btn.primary{ border-color: color-mix(in hsl, var(--accent) 50%, var(--border)); outline:1px solid color-mix(in hsl, var(--accent) 25%, transparent) }
+    .btn.forecast{ border-color: color-mix(in hsl, var(--accent-2) 50%, var(--border)); }
+
+    .inputs{
+      display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:end;
+    }
+    @media (max-width: 700px){
+      .inputs{ grid-template-columns: 1fr; }
+    }
+    label{ font-size:.86rem; color:var(--muted); display:block; margin: 0 0 6px; }
+    input[type="datetime-local"]{
+      width: 100%;
+      border:1px solid var(--border); background:var(--card); color:var(--fg);
+      padding:10px 12px; border-radius:12px;
+    }
+
+    .status{
+      font-size: .95rem; color: var(--muted);
+      display:flex; align-items:center; gap:8px; margin-bottom: 8px;
+    }
+    .dot{ width:8px; height:8px; border-radius:999px; background: var(--warn); }
+
+    #chart{ width:100%; height: clamp(320px, 45vh, 520px); border-radius: calc(var(--radius) - 6px); overflow:hidden; }
+
+    .table-card{ padding: 12px; }
+    table{ width:100%; border-collapse: collapse; font-size: clamp(.86rem, 1.5vw, .95rem); }
+    thead th{
+      color: var(--muted); font-weight: 600; text-align: left; padding: 10px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; backdrop-filter: blur(6px);
+      background: color-mix(in hsl, var(--card) 70%, transparent); z-index:1;
+    }
+    tbody td{ padding:10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    .muted{ color: var(--muted) }
+    .hide-sm{ }
+    @media (max-width:540px){ .hide-sm{ display:none } }
+
+    .legend{
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:.9rem; color:var(--muted); margin-top: 4px;
+    }
+    .swatch{
+      width: 10px; height: 10px; border-radius: 999px; display:inline-block;
+    }
+    .sw-obs{ background:#60a5fa }
+    .sw-fore{ background:#a78bfa }
   </style>
 </head>
 <body>
-<h1>Denver Barometric Pressure (last 72 hours)</h1>
-<div id="status">Loading…</div>
-<div id="stationWrap">Station: <span id="station" class="pill">—</span></div>
+<div class="wrap">
+  <header>
+    <h1>Denver Barometric Pressure</h1>
+    <div class="sub">
+      <span class="pill"><span class="badge" aria-hidden="true"></span> <strong>Station:</strong>&nbsp;<span id="station">—</span></span>
+      <span class="pill">Updated: <span id="updated">—</span></span>
+      <span class="pill">Points: <span id="count">—</span></span>
+    </div>
+    <div class="toolbar" style="margin-top:8px">
+      <div class="group">
+        <button id="toggleTime" class="btn chip" type="button" aria-pressed="true" title="Toggle UTC vs Local">Dates: Local</button>
+        <span class="legend">
+          <span><span class="swatch sw-obs"></span> Observed</span>
+          <span><span class="swatch sw-fore"></span> Forecast</span>
+        </span>
+      </div>
+    </div>
+  </header>
 
-<div id="chart" role="img" aria-label="Barometric pressure over time"></div>
+  <!-- Controls -->
+  <section class="card pad">
+    <div class="inputs">
+      <div>
+        <label for="start">Start (local)</label>
+        <input id="start" type="datetime-local" />
+      </div>
+      <div>
+        <label for="end">End (local)</label>
+        <input id="end" type="datetime-local" />
+      </div>
+      <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap">
+        <button id="apply" class="btn primary" type="button" title="Apply custom range">Apply</button>
+        <button class="btn chip" data-quick="24" type="button">Last 24h</button>
+        <button class="btn chip" data-quick="48" type="button">Last 48h</button>
+        <button class="btn chip" data-quick="72" type="button">Last 72h</button>
+      </div>
+    </div>
 
-<table id="table">
-  <thead>
-  <tr>
-    <th>Time (UTC)</th>
-    <th>Pressure (inHg)</th>
-    <th class="muted">hPa</th>
-    <th class="muted">Raw (Pa)</th>
-  </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+      <strong style="font-size:.92rem">Forecast:</strong>
+      <button class="btn chip forecast" data-forecast="24" type="button">Next 24h</button>
+      <button class="btn chip forecast" data-forecast="48" type="button">Next 48h</button>
+      <button class="btn chip forecast" data-forecast="72" type="button">Next 72h</button>
+      <button id="toggleForecast" class="btn chip forecast" type="button" aria-pressed="true" title="Show/hide forecast overlay">Overlay On</button>
+    </div>
+  </section>
+
+  <!-- Chart -->
+  <section class="card pad" aria-label="Barometric pressure over time">
+    <div class="status"><span class="dot" aria-hidden="true"></span><span id="status">Loading…</span></div>
+    <div id="chart" role="img" aria-label="Line chart of barometric pressure"></div>
+  </section>
+
+  <section class="row">
+    <section class="card table-card" aria-label="Observed data table">
+      <table id="table">
+        <thead>
+        <tr>
+          <th>Time</th>
+          <th>Pressure (inHg)</th>
+          <th class="muted hide-sm">hPa</th>
+          <th class="muted hide-sm">Raw (Pa)</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </section>
+</div>
 
 <script>
-  // -------- Utilities --------
+  // ---------- Config / DOM ----------
   const DENVER = { lat: 39.7392, lon: -104.9903 };
-  const statusEl = document.getElementById('status');
+  const statusEl  = document.getElementById('status');
   const stationEl = document.getElementById('station');
+  const updatedEl = document.getElementById('updated');
+  const countEl   = document.getElementById('count');
   const tableBody = document.querySelector('#table tbody');
+  const toggleBtn = document.getElementById('toggleTime');
+  const toggleForecastBtn = document.getElementById('toggleForecast');
+  const applyBtn  = document.getElementById('apply');
+  const startInp  = document.getElementById('start');
+  const endInp    = document.getElementById('end');
+  const quickBtns = Array.from(document.querySelectorAll('button[data-quick]'));
+  const forecastBtns = Array.from(document.querySelectorAll('button[data-forecast]'));
+  let overlayForecast = true;
 
+  // ---------- Units / helpers ----------
   const toHpa  = pa => (pa == null ? null : pa / 100);
-  const toInHg = pa => (pa == null ? null : pa / 3386.389);
+  const toInHgFromPa = pa => (pa == null ? null : pa / 3386.389);
 
-  function setStatus(msg){ statusEl.textContent = msg; }
-  function isoNowMinus(hours){ return new Date(Date.now() - hours*3600*1000).toISOString(); }
+  let useLocalTime = true;
+  const fmtLocal = new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  });
+  const fmtUTC = new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+  });
+  const fmtUpdated = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  const fDate = ms => {
+    const d = new Date(ms);
+    return useLocalTime ? fmtLocal.format(d) : fmtUTC.format(d) + ' UTC';
+  };
+  const setStatus = msg => { statusEl.textContent = msg; };
 
-  // -------- Data fetch (no custom headers => no CORS preflight) --------
+  const isoNowMinus = hours => new Date(Date.now() - hours*3600*1000).toISOString();
+
+  // datetime-local utilities
+  const pad2 = n => String(n).padStart(2, '0');
+  function toLocalInputValue(d){
+    const y=d.getFullYear(), m=pad2(d.getMonth()+1), day=pad2(d.getDate()),
+            h=pad2(d.getHours()), min=pad2(d.getMinutes());
+    return `${y}-${m}-${day}T${h}:${min}`;
+  }
+  function fromLocalInputValue(v){
+    // Create Date in local time from "YYYY-MM-DDTHH:MM"
+    const [date, time] = v.split('T');
+    const [Y,M,D] = date.split('-').map(Number);
+    const [h,mi] = time.split(':').map(Number);
+    return new Date(Y, M-1, D, h, mi, 0, 0);
+  }
+
+  // ---------- Fetch (no custom headers => no CORS preflight) ----------
   async function getNearestStation(lat, lon){
-    const pUrl = `https://api.weather.gov/points/${lat},${lon}`;
-    const r1 = await fetch(pUrl);
+    const r1 = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
     if(!r1.ok) throw new Error(`Points lookup failed: ${r1.status}`);
     const j1 = await r1.json();
-
     const listUrl = j1?.properties?.observationStations;
     if(!listUrl) throw new Error("No observationStations link for the point.");
-
     const r2 = await fetch(listUrl);
     if(!r2.ok) throw new Error(`Stations list failed: ${r2.status}`);
     const j2 = await r2.json();
-
-    // Take the first (closest) station
     const id = j2?.features?.[0]?.properties?.stationIdentifier;
     if(!id) throw new Error("No nearby stations found.");
-    return id;
+    return { stationId: id, pointsMeta: j1?.properties || {} };
   }
 
   async function getObservations(stationId, startIso, endIso){
-    // Request the time window explicitly
     const url = `https://api.weather.gov/stations/${encodeURIComponent(stationId)}/observations?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
     const r = await fetch(url);
     if(!r.ok){
@@ -86,7 +274,6 @@
     }
     const j = await r.json();
     const feats = j?.features || [];
-
     const rows = feats.map(f => {
       const p = f?.properties || {};
       const t = p?.timestamp ? new Date(p.timestamp) : null;
@@ -97,125 +284,312 @@
         timeMs: t.getTime(),
         Pa: pa,
         hPa: pa != null ? toHpa(pa) : null,
-        inHg: pa != null ? toInHg(pa) : null
+        inHg: pa != null ? toInHgFromPa(pa) : null
       };
     }).filter(Boolean);
-
-    // Ascending by time
     rows.sort((a,b) => a.timeMs - b.timeMs);
     return rows;
   }
 
-  // -------- Table --------
+  // Forecast Grid (pressure layer). The gridpoint docs list "pressure" as a layer (forecast). See:
+  // https://weather-gov.github.io/api/gridpoints  (pressure layer)
+  async function getForecastPressure(lat, lon){
+    // 1) points -> forecastGridData URL
+    const r = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
+    if(!r.ok) throw new Error(`Points lookup failed: ${r.status}`);
+    const j = await r.json();
+    const gridUrl = j?.properties?.forecastGridData;
+    if(!gridUrl) throw new Error("No forecastGridData link for this point.");
+    // 2) gridpoints -> properties.pressure
+    const r2 = await fetch(gridUrl);
+    if(!r2.ok) throw new Error(`Gridpoints failed: ${r2.status}`);
+    const g = await r2.json();
+    const layer = g?.properties?.pressure;
+    if(!layer || !Array.isArray(layer.values)) throw new Error("No pressure layer available from gridpoints.");
+    const uom = (layer.uom || '').toLowerCase(); // often 'unit:Pa'
+    // Convert helper for forecast values
+    const conv = (val) => {
+      if(val == null) return null;
+      if(uom.includes('pa')) return toInHgFromPa(val);
+      if(uom.includes('hpa')) return val / 33.86389; // hPa -> inHg
+      if(uom.includes('inhg')) return val;
+      // fallback assume Pascals
+      return toInHgFromPa(val);
+    };
+    // Each element has validTime like "2025-10-16T00:00:00+00:00/PT1H"
+    const rows = [];
+    for(const v of layer.values){
+      const vt = v.validTime; // "start/Duration"
+      if(!vt) continue;
+      const [startStr, durStr] = vt.split('/');
+      const start = new Date(startStr);
+      if(!isFinite(start)) continue;
+      // For charting, sample the value at the interval start
+      rows.push({
+        timeIso: start.toISOString(),
+        timeMs: start.getTime(),
+        inHg: conv(v.value),
+        // derive companion units for tooltips/table (optional)
+        hPa: v.value == null ? null :
+                (uom.includes('hpa') ? v.value : uom.includes('pa') ? (v.value/100) :
+                        uom.includes('inhg') ? (v.value*33.86389) : null),
+        Pa: uom.includes('pa') ? v.value : (uom.includes('hpa') ? v.value*100 : (uom.includes('inhg') ? v.value*3386.389 : null))
+      });
+    }
+    rows.sort((a,b)=>a.timeMs-b.timeMs);
+    return rows;
+  }
+
+  // ---------- Table ----------
+  let lastObsRows = [];
   function renderTable(rows){
     tableBody.innerHTML = "";
+    const frag = document.createDocumentFragment();
     for(const r of rows){
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${r.timeIso}</td>
-        <td>${r.inHg != null ? r.inHg.toFixed(3) : "—"}</td>
-        <td class="muted">${r.hPa != null ? r.hPa.toFixed(1) : "—"}</td>
-        <td class="muted">${r.Pa ?? "—"}</td>
+        <td>${fDate(r.timeMs)}</td>
+        <td>${Number.isFinite(r.inHg) ? r.inHg.toFixed(3) : "—"}</td>
+        <td class="muted hide-sm">${Number.isFinite(r.hPa) ? r.hPa.toFixed(1) : "—"}</td>
+        <td class="muted hide-sm">${r.Pa ?? "—"}</td>
       `;
-      tableBody.appendChild(tr);
+      frag.appendChild(tr);
     }
+    tableBody.appendChild(frag);
   }
 
-  // -------- Chart (Apache ECharts) --------
+  // ---------- Chart ----------
   let chart;
-  function initChart(){
-    const el = document.getElementById('chart');
-    chart = echarts.init(el, null, { renderer: 'canvas' });
+  let forecastRowsCache = null;
 
-    const opt = {
+  function initChart(){
+    chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
+    const isSmall = matchMedia('(max-width: 540px)').matches;
+    chart.setOption({
       animation: false,
+      color: ['#60a5fa', '#a78bfa'],
+      grid: { left: 52, right: 22, top: 12, bottom: isSmall ? 58 : 64 },
       tooltip: {
         trigger: 'axis',
-        valueFormatter: v => (v != null ? v.toFixed(3) + ' inHg' : '—'),
-        axisPointer: { type: 'cross' }
+        confine: true,
+        axisPointer: { type: 'cross' },
+        formatter: params => {
+          if(!params?.length) return '';
+          const time = fDate(params[0].value[0]);
+          const lines = params.map(p => {
+            const v = p.value[1];
+            const hpa = v ? (v * 3386.389 / 100).toFixed(1) : '—';
+            return `<div><span style="opacity:.8">${p.marker}${p.seriesName}:</span> <strong>${v?.toFixed(3) ?? '—'} inHg</strong> <span style="opacity:.75">(${hpa} hPa)</span></div>`;
+          }).join('');
+          return `<div style="font-size:12.5px">
+                    <div style="opacity:.8;margin-bottom:4px">${time}</div>
+                    ${lines}
+                  </div>`;
+        }
       },
-      grid: { left: 48, right: 24, top: 20, bottom: 60 },
       xAxis: {
         type: 'time',
-        name: 'Time',
-        nameLocation: 'middle',
-        nameGap: 40,
-        axisLabel: { hideOverlap: true }
+        axisLabel: { hideOverlap: true, margin: 14, formatter: value => fDate(value) },
+        axisLine: { lineStyle: { opacity: .4 } },
+        splitLine: { show: true, lineStyle: { opacity: .08 } }
       },
       yAxis: {
         type: 'value',
         name: 'inHg',
         nameGap: 12,
-        // sensible defaults; will auto-tighten after data loads
+        axisLine: { lineStyle: { opacity: .4 } },
+        splitLine: { lineStyle: { opacity: .12 } },
+        scale: true,
         min: 28.5,
-        max: 31.0,
-        scale: true
+        max: 31.0
       },
       dataZoom: [
-        { type: 'inside', throttle: 50 },
-        { type: 'slider', height: 22, bottom: 24 }
+        { type: 'inside', throttle: 40 },
+        { type: 'slider', height: 22, bottom: 22, moveHandleSize: 6, showDetail: false }
       ],
-      series: [{
-        name: 'Barometric Pressure',
-        type: 'line',
-        showSymbol: false,
-        connectNulls: true,
-        smooth: 0.15,
-        // placeholder; data set later
-        data: []
-      }]
-    };
-
-    chart.setOption(opt);
+      series: [
+        {
+          type: 'line',
+          name: 'Observed',
+          showSymbol: false,
+          connectNulls: true,
+          smooth: 0.18,
+          lineStyle: { width: 2.4 },
+          areaStyle: { opacity: .15 },
+          data: []
+        },
+        {
+          type: 'line',
+          name: 'Forecast',
+          showSymbol: false,
+          connectNulls: true,
+          smooth: 0.18,
+          lineStyle: { width: 2.2, type: 'dashed' },
+          areaStyle: { opacity: .08 },
+          data: []
+        }
+      ]
+    });
     window.addEventListener('resize', () => chart.resize());
   }
 
-  function updateChart(rows){
-    const points = rows
-            .filter(r => Number.isFinite(r.inHg))
-            .map(r => [r.timeMs, Number(r.inHg)]);
-
+  function setSeries(obsPts, forePts){
     chart.setOption({
-      series: [{ data: points }]
+      series: [
+        { name: 'Observed', data: obsPts },
+        { name: 'Forecast', data: overlayForecast ? forePts : [] }
+      ]
     });
-
-    if(points.length){
-      const vals = points.map(p => p[1]);
-      const minVal = Math.min(...vals);
-      const maxVal = Math.max(...vals);
-      const pad = Math.max((maxVal - minVal) * 0.1, 0.05); // at least a bit of padding
-      chart.setOption({
-        yAxis: { min: minVal - pad, max: maxVal + pad }
-      });
+    // autoscale Y to observed+forecast if present
+    const all = [...obsPts, ...(overlayForecast ? forePts : [])];
+    if(all.length){
+      const vals = all.map(p => p[1]).filter(Number.isFinite);
+      if(vals.length){
+        const minVal = Math.min(...vals), maxVal = Math.max(...vals);
+        const pad = Math.max((maxVal - minVal) * 0.12, 0.05);
+        chart.setOption({ yAxis: { min: minVal - pad, max: maxVal + pad } });
+      }
     }
   }
 
-  // -------- Main --------
+  function refreshXAxisLabels(){
+    const opt = chart.getOption();
+    chart.setOption({ xAxis: [{ ...opt.xAxis[0] }] });
+  }
+
+  // ---------- Orchestration ----------
+  let stationId = null;
+  let pointsMeta = null;
+
+  async function loadObserved(startIso, endIso){
+    setStatus("Fetching observations…");
+    const obs = await getObservations(stationId, startIso, endIso);
+    lastObsRows = obs;
+    countEl.textContent = obs.length;
+    updatedEl.textContent = fmtUpdated.format(new Date());
+    renderTable(obs);
+    return obs;
+  }
+
+  async function ensureForecast(){
+    if(forecastRowsCache) return forecastRowsCache;
+    setStatus("Fetching forecast grid (pressure) …");
+    forecastRowsCache = await getForecastPressure(DENVER.lat, DENVER.lon);
+    return forecastRowsCache;
+  }
+
+  function filterForecastByNextHours(rows, hours){
+    const now = Date.now();
+    const end = now + hours*3600*1000;
+    return rows.filter(r => r.timeMs >= now && r.timeMs <= end);
+  }
+
+  function pointsFromRows(rows){ return rows.filter(r=>Number.isFinite(r.inHg)).map(r=>[r.timeMs, +r.inHg]); }
+
+  // ---------- Event handlers ----------
+  toggleBtn.addEventListener('click', () => {
+    useLocalTime = !useLocalTime;
+    toggleBtn.setAttribute('aria-pressed', String(useLocalTime));
+    toggleBtn.textContent = 'Dates: ' + (useLocalTime ? 'Local' : 'UTC');
+    renderTable(lastObsRows);
+    refreshXAxisLabels();
+  });
+
+  toggleForecastBtn.addEventListener('click', () => {
+    overlayForecast = !overlayForecast;
+    toggleForecastBtn.setAttribute('aria-pressed', String(overlayForecast));
+    toggleForecastBtn.textContent = overlayForecast ? 'Overlay On' : 'Overlay Off';
+    // Re-apply with latest data on chart
+    const obsPts = pointsFromRows(lastObsRows);
+    const forePts = forecastRowsCache ? pointsFromRows(forecastRowsCache) : [];
+    setSeries(obsPts, forePts);
+  });
+
+  applyBtn.addEventListener('click', async () => {
+    try{
+      const s = fromLocalInputValue(startInp.value);
+      const e = fromLocalInputValue(endInp.value);
+      if(!(s instanceof Date) || !(e instanceof Date) || isNaN(s) || isNaN(e) || s >= e){
+        throw new Error("Please select a valid start/end.");
+      }
+      const obs = await loadObserved(s.toISOString(), e.toISOString());
+      const obsPts = pointsFromRows(obs);
+      const forePts = forecastRowsCache ? pointsFromRows(forecastRowsCache) : [];
+      setSeries(obsPts, forePts);
+      setStatus(`Loaded ${obs.length} observations.`);
+      document.querySelector('.dot').style.background = 'var(--ok)';
+    }catch(err){
+      console.error(err);
+      setStatus(String(err));
+      document.querySelector('.dot').style.background = 'var(--err)';
+    }
+  });
+
+  quickBtns.forEach(b => b.addEventListener('click', async (e) => {
+    const hrs = Number(e.currentTarget.dataset.quick);
+    const end = new Date();
+    const start = new Date(Date.now() - hrs*3600*1000);
+    startInp.value = toLocalInputValue(start);
+    endInp.value = toLocalInputValue(end);
+    applyBtn.click();
+  }));
+
+  forecastBtns.forEach(b => b.addEventListener('click', async (e) => {
+    try{
+      const hrs = Number(e.currentTarget.dataset.forecast);
+      const f = await ensureForecast();
+      const fwin = filterForecastByNextHours(f, hrs);
+      const obsPts = pointsFromRows(lastObsRows);
+      const forePts = pointsFromRows(fwin);
+      setSeries(obsPts, forePts);
+      setStatus(`Forecast loaded (${hrs}h). Observed overlay ${overlayForecast ? 'on' : 'off'}.`);
+      document.querySelector('.dot').style.background = 'var(--ok)';
+    }catch(err){
+      console.error(err);
+      setStatus(String(err));
+      document.querySelector('.dot').style.background = 'var(--err)';
+    }
+  }));
+
+  // ---------- Bootstrap ----------
+  function defaultRange(){
+    const end = new Date();
+    const start = new Date(Date.now() - 72*3600*1000);
+    startInp.value = toLocalInputValue(start);
+    endInp.value   = toLocalInputValue(end);
+  }
+
   async function main(){
     try{
       setStatus("Finding nearest station to Denver…");
-      const stationId = await getNearestStation(DENVER.lat, DENVER.lon);
+      const meta = await getNearestStation(DENVER.lat, DENVER.lon);
+      stationId  = meta.stationId;
+      pointsMeta = meta.pointsMeta;
       stationEl.textContent = stationId;
 
-      const endIso = new Date().toISOString();
-      const startIso = isoNowMinus(72);
+      defaultRange();
+      const s = fromLocalInputValue(startInp.value);
+      const e = fromLocalInputValue(endInp.value);
 
-      setStatus("Fetching observations…");
-      const rows = await getObservations(stationId, startIso, endIso);
+      setStatus("Initializing chart…");
+      initChart();
 
-      renderTable(rows);
-      updateChart(rows);
+      const obs = await loadObserved(s.toISOString(), e.toISOString());
+      const obsPts = pointsFromRows(obs);
+      setSeries(obsPts, []);
+      setStatus(`Loaded ${obs.length} observations. Pinch/drag to zoom. Forecast options available below.`);
 
-      const total = rows.length;
-      const withPressure = rows.filter(r => r.Pa != null).length;
-      setStatus(`Loaded ${total} observations (${withPressure} with barometricPressure). Pinch/drag to zoom.`);
-    } catch(err){
+      // Warm the forecast cache in the background (no headers to avoid preflight)
+      ensureForecast().catch(()=>{ /* ignore forecast errors for now */ });
+
+      document.querySelector('.dot').style.background = 'var(--ok)';
+    }catch(err){
       console.error(err);
       setStatus(String(err));
+      document.querySelector('.dot').style.background = 'var(--err)';
     }
   }
 
-  initChart();
   main();
 </script>
 </body>
