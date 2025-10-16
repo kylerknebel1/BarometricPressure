@@ -22,6 +22,7 @@
       --warn: #f59e0b;
       --radius: 18px;
       --shadow: 0 10px 30px rgba(0,0,0,.25);
+      --tap: 46px; /* comfortable hit size */
     }
     @media (prefers-color-scheme: light){
       :root{
@@ -43,10 +44,10 @@
               radial-gradient(1200px 800px at 110% 10%, rgba(167,139,250,.22), transparent 60%),
               var(--bg);
       color: var(--fg);
-      padding: clamp(14px, 3vw, 28px);
+      padding: clamp(10px, 3vw, 28px);
     }
-    .wrap{ max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
-    h1{ margin: 0; font-weight: 700; font-size: clamp(1.1rem, 2.4vw, 1.6rem); letter-spacing: .2px; }
+    .wrap{ max-width: 1100px; margin: 0 auto; display: grid; gap: 12px; }
+    h1{ margin: 0; font-weight: 700; font-size: clamp(1.05rem, 2.6vw, 1.6rem); letter-spacing: .2px; }
 
     .card{
       background: var(--card);
@@ -57,7 +58,7 @@
     }
     .pad{ padding: 12px; }
 
-    .sub{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:.95rem; color:var(--muted); }
+    .sub{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:.95rem; color:var(--muted); }
     .pill{
       display:inline-flex; align-items:center; gap:8px;
       padding: 6px 10px; border-radius: 999px;
@@ -78,7 +79,8 @@
     }
     .seg button{
       appearance:none; border:1px solid var(--border); background:transparent;
-      color:var(--fg); padding:8px 12px; border-radius:10px; cursor:pointer; font-size:.92rem;
+      color:var(--fg); padding:12px 14px; border-radius:12px; cursor:pointer; font-size:.95rem;
+      min-height: var(--tap);
     }
     .seg button[aria-pressed="true"]{
       background: color-mix(in hsl, var(--accent) 12%, var(--card));
@@ -88,27 +90,38 @@
     .seg [data-mode="historical"][aria-pressed="true"]{ outline-color: color-mix(in hsl, var(--accent-2) 55%, transparent) }
     .seg [data-mode="forecast"][aria-pressed="true"]{ outline-color: color-mix(in hsl, var(--accent-3) 55%, transparent) }
 
-    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
-    .toolbar .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .toolbar{
+      position: sticky; top: 8px; z-index: 10;
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;
+      padding: 6px 0;
+    }
+    .toolbar .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
     .inputs{
       display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; align-items:end;
     }
     @media (max-width: 780px){ .inputs{ grid-template-columns: 1fr; } }
-    label{ font-size:.86rem; color:var(--muted); display:block; margin: 0 0 6px; }
-    input[type="datetime-local"]{
+    label{ font-size:.9rem; color:var(--muted); display:block; margin: 0 0 6px; }
+    input[type="datetime-local"],
+    input[type="number"],
+    select{
       width: 100%;
       border:1px solid var(--border); background:var(--card); color:var(--fg);
-      padding:10px 12px; border-radius:12px;
+      padding:12px 14px; border-radius:14px; min-height: var(--tap);
+      font-size:1rem;
     }
+
     .btn{
       appearance:none; border:1px solid var(--border); background:var(--card);
-      color:var(--fg); padding:8px 12px; border-radius:12px; cursor:pointer; font-size:.92rem;
-      backdrop-filter: blur(6px);
+      color:var(--fg); padding:12px 14px; border-radius:14px; cursor:pointer; font-size:1rem;
+      backdrop-filter: blur(6px); min-height: var(--tap);
     }
     .btn:active{ transform: translateY(1px); }
     .btn.primary{ border-color: color-mix(in hsl, var(--accent) 50%, var(--border)); }
-    .btn.chip{ padding:6px 10px; font-size:.9rem }
+    .btn.chip{ padding:10px 12px; font-size:.95rem; border-radius: 999px }
+
+    .chip-row{ display:flex; gap:8px; flex-wrap:wrap }
+    .chip-row .btn{ flex: 0 0 auto }
 
     .status{
       font-size: .95rem; color: var(--muted);
@@ -116,10 +129,13 @@
     }
     .dot{ width:8px; height:8px; border-radius:999px; background: var(--warn); }
 
-    #chart{ width:100%; height: clamp(320px, 48vh, 560px); border-radius: calc(var(--radius) - 6px); overflow:hidden; }
+    #chart{ width:100%; height: clamp(300px, 52vh, 560px); border-radius: calc(var(--radius) - 6px); overflow:hidden; }
 
-    .table-card{ padding: 12px; }
-    table{ width:100%; border-collapse: collapse; font-size: clamp(.86rem, 1.5vw, .95rem); }
+    .ytools{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px }
+    .ytools .btn{ flex: 1 1 30% }
+
+    .table-card{ padding: 12px; overflow:auto; }
+    table{ width:100%; border-collapse: collapse; font-size: clamp(.86rem, 1.5vw, .95rem); min-width: 520px; }
     thead th{
       color: var(--muted); font-weight: 600; text-align: left; padding: 10px; border-bottom: 1px solid var(--border);
       position: sticky; top: 0; backdrop-filter: blur(6px);
@@ -128,12 +144,16 @@
     tbody td{ padding:10px; border-bottom:1px solid var(--border); white-space:nowrap; }
     .muted{ color: var(--muted) }
     .hide-sm{ } @media (max-width:540px){ .hide-sm{ display:none } }
+
+    /* Location row */
+    .loc-grid{ display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; }
+    @media (max-width:780px){ .loc-grid{ grid-template-columns: 1fr 1fr; } .loc-grid .wide{ grid-column: 1 / -1 } }
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>Denver Barometric Pressure</h1>
+    <h1 id="title">Denver Barometric Pressure</h1>
     <div class="sub">
       <span class="pill"><span class="badge" aria-hidden="true"></span> <strong>Station:</strong>&nbsp;<span id="station">—</span></span>
       <span class="pill">Updated: <span id="updated">—</span></span>
@@ -149,13 +169,43 @@
       <div class="right">
         <button id="toggleTime" class="btn chip" type="button" aria-pressed="true" title="Toggle UTC vs Local">Dates: Local</button>
         <button class="btn chip" data-quick="24" type="button">Last 24h</button>
-        <button class="btn chip" data-quick="48" type="button">Last 48h</button>
-        <button class="btn chip" data-quick="72" type="button">Last 72h</button>
+        <button class="btn chip" data-quick="48" type="button">48h</button>
+        <button class="btn chip" data-quick="72" type="button">72h</button>
       </div>
     </div>
   </header>
 
-  <!-- Controls -->
+  <!-- Location controls -->
+  <section class="card pad">
+    <div class="loc-grid">
+      <div>
+        <label for="preset">Location</label>
+        <select id="preset">
+          <option value="custom">Custom (enter coords)</option>
+          <option value="denver" selected>Denver, CO</option>
+          <option value="boulder">Boulder, CO</option>
+          <option value="cos">Colorado Springs, CO</option>
+          <option value="vail">Vail, CO</option>
+        </select>
+      </div>
+      <div>
+        <label for="lat">Latitude</label>
+        <input id="lat" type="number" inputmode="decimal" step="0.0001" />
+      </div>
+      <div>
+        <label for="lon">Longitude</label>
+        <input id="lon" type="number" inputmode="decimal" step="0.0001" />
+      </div>
+      <div style="display:flex; gap:8px; align-items:end;">
+        <button id="useGps" class="btn" type="button" title="Use browser location">Use My Location</button>
+      </div>
+      <div class="wide" style="display:flex; gap:8px; align-items:end; justify-content:flex-end">
+        <button id="applyLocation" class="btn primary" type="button" title="Apply location">Apply Location</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Date / time controls -->
   <section class="card pad">
     <div class="inputs">
       <div>
@@ -167,6 +217,12 @@
         <input id="end" type="datetime-local" />
       </div>
       <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap">
+        <div class="chip-row" aria-label="Quick ranges">
+          <button class="btn chip" data-quick="6"  type="button">6h</button>
+          <button class="btn chip" data-quick="12" type="button">12h</button>
+          <button class="btn chip" data-quick="24" type="button">24h</button>
+          <button class="btn chip" data-quick="168" type="button">7d</button>
+        </div>
         <button id="apply" class="btn primary" type="button" title="Apply custom range">Apply</button>
       </div>
     </div>
@@ -176,6 +232,11 @@
   <section class="card pad" aria-label="Barometric pressure over time">
     <div class="status"><span class="dot" aria-hidden="true"></span><span id="status">Loading…</span></div>
     <div id="chart" role="img" aria-label="Line chart of barometric pressure"></div>
+    <div class="ytools" aria-label="Y axis scale tools">
+      <button id="yTight" class="btn" type="button" title="Tighten Y scale">Tighten Scale</button>
+      <button id="yLoose" class="btn" type="button" title="Loosen Y scale">Loosen Scale</button>
+      <button id="yReset" class="btn" type="button" title="Reset Y scale">Reset Scale</button>
+    </div>
   </section>
 
   <section class="card table-card" aria-label="Data table">
@@ -196,7 +257,14 @@
 
 <script>
   // ---------- Config / DOM ----------
-  const DENVER = { lat: 39.7392, lon: -104.9903 };
+  const PRESETS = {
+    denver: { name: 'Denver', lat: 39.7392, lon: -104.9903 },
+    boulder:{ name: 'Boulder', lat: 40.01499, lon: -105.27055 },
+    cos:    { name: 'Colorado Springs', lat: 38.8339, lon: -104.8214 },
+    vail:   { name: 'Vail', lat: 39.6403, lon: -106.3742 }
+  };
+  let currentLoc = { ...PRESETS.denver };
+
   const statusEl  = document.getElementById('status');
   const stationEl = document.getElementById('station');
   const updatedEl = document.getElementById('updated');
@@ -208,6 +276,17 @@
   const endInp    = document.getElementById('end');
   const quickBtns = Array.from(document.querySelectorAll('button[data-quick]'));
   const modeTabs  = Array.from(document.querySelectorAll('.seg [data-mode]'));
+
+  const titleEl   = document.getElementById('title');
+  const presetSel = document.getElementById('preset');
+  const latInp    = document.getElementById('lat');
+  const lonInp    = document.getElementById('lon');
+  const gpsBtn    = document.getElementById('useGps');
+  const applyLoc  = document.getElementById('applyLocation');
+
+  const yTight = document.getElementById('yTight');
+  const yLoose = document.getElementById('yLoose');
+  const yReset = document.getElementById('yReset');
 
   let currentMode = 'observed'; // 'observed' | 'historical' | 'forecast'
 
@@ -252,7 +331,6 @@
 
   // ---------- Data sources ----------
   async function getNearestStation(lat, lon){
-    // weather.gov -> observationStations (for recent) and a likely ICAO ID for IEM
     const r1 = await fetch(`https://api.weather.gov/points/${lat},${lon}`);
     if(!r1.ok) throw new Error(`Points lookup failed: ${r1.status}`);
     const j1 = await r1.json();
@@ -266,7 +344,6 @@
     return { stationId: id, pointsMeta: j1?.properties || {} };
   }
 
-  // Recent observations (days): weather.gov
   async function getObserved(stationId, startIso, endIso){
     const url = `https://api.weather.gov/stations/${encodeURIComponent(stationId)}/observations?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
     const r = await fetch(url);
@@ -295,27 +372,13 @@
     return rows;
   }
 
-  // Historical observations (months/years): IEM ASOS CSV (no key, no headers)
-  // We'll request altimeter (alti, in inches of mercury) and mslp (hPa) as fallback.
+  // Historical (IEM ASOS)
   async function getHistoricalIEM(icao, startDate, endDate){
-    // IEM expects date parts and whole-day ranges. We'll request inclusive whole days bounding the user range.
     const s = new Date(startDate), e = new Date(endDate);
     const sy = s.getUTCFullYear(), sm = s.getUTCMonth()+1, sd = s.getUTCDate();
     const ey = e.getUTCFullYear(), em = e.getUTCMonth()+1, ed = e.getUTCDate();
 
-    const params = new URLSearchParams({
-      station: icao,
-      data: 'alti',
-      'data': 'mslp',
-      tz: 'UTC',
-      format: 'onlycomma',
-      latlon: 'no',
-      year1: String(sy), month1: String(sm), day1: String(sd),
-      year2: String(ey), month2: String(em), day2: String(ed),
-      time: '0:00-23:59'
-    });
-    const base = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py';
-    const url = `${base}?station=${encodeURIComponent(icao)}&data=alti&data=mslp&tz=UTC&format=onlycomma&latlon=no&year1=${sy}&month1=${sm}&day1=${sd}&year2=${ey}&month2=${em}&day2=${ed}&time=0:00-23:59`;
+    const url = `https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=${encodeURIComponent(icao)}&data=alti&data=mslp&tz=UTC&format=onlycomma&latlon=no&year1=${sy}&month1=${sm}&day1=${sd}&year2=${ey}&month2=${em}&day2=${ed}&time=0:00-23:59`;
 
     const r = await fetch(url);
     if(!r.ok) throw new Error(`IEM ASOS request failed: ${r.status}`);
@@ -354,13 +417,11 @@
     return clipped;
   }
 
-  // Forecast (Open-Meteo: hourly mean sea level pressure -> inHg)
+  // Forecast (Open-Meteo)
   async function getForecastPressure(lat, lon){
-    // Build range so we don't download tons of unused hours
     const sDate = fromLocalInputValue(startInp.value) || new Date();
     const eDate = fromLocalInputValue(endInp.value)   || new Date(Date.now() + 48*3600*1000);
 
-    // Open-Meteo returns ISO time array + pressure_msl (hPa). No key, CORS OK.
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
             `&hourly=pressure_msl&timezone=auto` +
             `&start_date=${sDate.toISOString().slice(0,10)}&end_date=${eDate.toISOString().slice(0,10)}`;
@@ -390,7 +451,6 @@
       });
     }
 
-    // clip to exact datetime picker window
     const s = sDate.getTime(), e = eDate.getTime();
     const clipped = rows.filter(r => r.timeMs >= s && r.timeMs <= e);
     clipped.sort((a,b)=>a.timeMs-b.timeMs);
@@ -399,6 +459,7 @@
 
   // ---------- Table / Chart ----------
   let lastRows = [];
+  let chart, yAutoBounds = null;
 
   function renderTable(rows){
     tableBody.innerHTML = "";
@@ -417,14 +478,13 @@
     tableBody.appendChild(frag);
   }
 
-  let chart;
   function initChart(){
     chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
     const isSmall = matchMedia('(max-width: 540px)').matches;
     chart.setOption({
       animation: false,
       color: ['var(--accent)', 'var(--accent-2)', 'var(--accent-3)'],
-      grid: { left: 52, right: 22, top: 12, bottom: isSmall ? 58 : 64 },
+      grid: { left: 52, right: 18, top: 8, bottom: isSmall ? 56 : 64 },
       tooltip: {
         trigger: 'axis',
         confine: true,
@@ -445,14 +505,14 @@
       },
       xAxis: {
         type: 'time',
-        axisLabel: { hideOverlap: true, margin: 14, formatter: value => fDate(value) },
+        axisLabel: { hideOverlap: true, margin: 12, formatter: value => fDate(value) },
         axisLine: { lineStyle: { opacity: .4 } },
         splitLine: { show: true, lineStyle: { opacity: .08 } }
       },
       yAxis: {
         type: 'value',
         name: 'inHg',
-        nameGap: 12,
+        nameGap: 10,
         axisLine: { lineStyle: { opacity: .4 } },
         splitLine: { lineStyle: { opacity: .12 } },
         scale: true,
@@ -461,7 +521,7 @@
       },
       dataZoom: [
         { type: 'inside', throttle: 40 },
-        { type: 'slider', height: 22, bottom: 22, moveHandleSize: 6, showDetail: false }
+        { type: 'slider', height: 22, bottom: 18, moveHandleSize: 6, showDetail: false }
       ],
       series: [
         {
@@ -487,11 +547,15 @@
               : name === 'Historical' ? getComputedStyle(document.documentElement).getPropertyValue('--accent-2').trim()
                       : getComputedStyle(document.documentElement).getPropertyValue('--accent-3').trim()]
     });
+    // Remember auto bounds for mobile-friendly y-controls
     if(pts.length){
       const ys = pts.map(p=>p[1]);
       const minVal = Math.min(...ys), maxVal = Math.max(...ys);
       const pad = Math.max((maxVal - minVal) * 0.12, 0.05);
-      chart.setOption({ yAxis: { min: minVal - pad, max: maxVal + pad } });
+      const min = +(minVal - pad).toFixed(3);
+      const max = +(maxVal + pad).toFixed(3);
+      yAutoBounds = { min, max };
+      chart.setOption({ yAxis: { min, max } });
     }
   }
 
@@ -518,8 +582,7 @@
 
   async function loadForecastRange(startIso, endIso){
     setStatus("Fetching forecast (Open-Meteo) …");
-    const all = await getForecastPressure(DENVER.lat, DENVER.lon);
-    // clip to custom range (getForecastPressure already clips, but this is harmless)
+    const all = await getForecastPressure(currentLoc.lat, currentLoc.lon);
     const s = new Date(startIso).getTime(), e = new Date(endIso).getTime();
     return all.filter(r => r.timeMs >= s && r.timeMs <= e);
   }
@@ -589,7 +652,6 @@
   modeTabs.forEach(btn => btn.addEventListener('click', () => {
     currentMode = btn.dataset.mode;
     setPressed(currentMode);
-    // If user switches to Forecast and picked a past window, auto-switch to next 48h
     if(currentMode === 'forecast'){
       const start = new Date();
       const end = new Date(Date.now() + 48*3600*1000);
@@ -603,6 +665,90 @@
     modeTabs.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   }
 
+  // Y-axis mobile-friendly controls
+  yTight.addEventListener('click', () => tweakYScale(0.85));
+  yLoose.addEventListener('click', () => tweakYScale(1.15));
+  yReset.addEventListener('click', () => {
+    if(yAutoBounds) chart.setOption({ yAxis: { min: yAutoBounds.min, max: yAutoBounds.max } });
+  });
+  function tweakYScale(factor){
+    const opt = chart.getOption();
+    const y = opt.yAxis[0];
+    let min = y.min, max = y.max;
+    const mid = (min + max) / 2;
+    const half = (max - min) / 2 * factor;
+    min = +(mid - half).toFixed(3);
+    max = +(mid + half).toFixed(3);
+    chart.setOption({ yAxis: { min, max } });
+  }
+
+  // ---------- Location handlers ----------
+  function syncLocInputs(){
+    latInp.value = currentLoc.lat.toFixed(4);
+    lonInp.value = currentLoc.lon.toFixed(4);
+    titleEl.textContent = `${currentLoc.name || 'Custom'} Barometric Pressure`;
+  }
+
+  presetSel.addEventListener('change', () => {
+    const v = presetSel.value;
+    if(PRESETS[v]){
+      currentLoc = { ...PRESETS[v] };
+    }else{
+      // custom mode; leave lat/lon as-is (or user will fill)
+      if(!currentLoc.name) currentLoc.name = 'Custom';
+    }
+    syncLocInputs();
+  });
+
+  gpsBtn.addEventListener('click', () => {
+    if(!navigator.geolocation){
+      alert('Geolocation not supported');
+      return;
+    }
+    setStatus('Getting your location…');
+    navigator.geolocation.getCurrentPosition(
+            pos => {
+              const { latitude, longitude } = pos.coords;
+              currentLoc = { name: 'My Location', lat: latitude, lon: longitude };
+              presetSel.value = 'custom';
+              syncLocInputs();
+              setStatus('Location set from device GPS.');
+            },
+            err => {
+              console.error(err);
+              setStatus('Unable to get location.');
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+
+  applyLoc.addEventListener('click', async () => {
+    const lat = parseFloat(latInp.value);
+    const lon = parseFloat(lonInp.value);
+    if(Number.isFinite(lat) && Number.isFinite(lon)){
+      currentLoc.lat = lat; currentLoc.lon = lon;
+      if(presetSel.value !== 'custom') presetSel.value = 'custom';
+      currentLoc.name = currentLoc.name || 'Custom';
+    }
+    await rebootstrapForLocation();
+  });
+
+  async function rebootstrapForLocation(){
+    try{
+      setStatus(`Finding nearest station to ${currentLoc.name || 'location'}…`);
+      const meta = await getNearestStation(currentLoc.lat, currentLoc.lon);
+      stationId  = meta.stationId;
+      pointsMeta = meta.pointsMeta;
+      stationEl.textContent = stationId;
+      titleEl.textContent = `${currentLoc.name || 'Custom'} Barometric Pressure`;
+      await applyRange();
+    }catch(err){
+      console.error(err);
+      setStatus(String(err));
+      setDot('var(--err)');
+    }
+  }
+
   // ---------- Bootstrap ----------
   function defaultRange(){
     const end = new Date();
@@ -613,8 +759,12 @@
 
   async function main(){
     try{
+      // seed UI with Denver preset
+      presetSel.value = 'denver';
+      syncLocInputs();
+
       setStatus("Finding nearest station to Denver…");
-      const meta = await getNearestStation(DENVER.lat, DENVER.lon);
+      const meta = await getNearestStation(currentLoc.lat, currentLoc.lon);
       stationId  = meta.stationId;       // e.g., KDEN
       pointsMeta = meta.pointsMeta;
       stationEl.textContent = stationId;
@@ -622,7 +772,6 @@
       defaultRange();
       initChart();
 
-      // Initial draw (Observed, last 72h)
       await applyRange();
     }catch(err){
       console.error(err);
