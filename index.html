@@ -493,7 +493,13 @@
       },
       xAxis: {
         type: 'time',
-        axisLabel: { hideOverlap: true, margin: 14, formatter: value => fDate(value) },
+        axisLabel: {
+          hideOverlap: true,
+          margin: 14,
+          formatter: value => isSmall ? fDay(value) : fDate(value)   // days on phones
+        },
+        // Force at least daily ticks on phones so labels don't get crowded
+        minInterval: isSmall ? 24*3600*1000 : 0,
         axisLine: { lineStyle: { opacity: .4 } },
         splitLine: { show: true, lineStyle: { opacity: .08 } }
       },
