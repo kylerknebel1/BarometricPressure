@@ -97,7 +97,7 @@
 
     .inputs{
       display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap:8px; align-items:start;
-      margin-right: 20px;
+      margin-right: 25px;
     }
     @media (max-width: 780px){ .inputs{ grid-template-columns: 1fr; } }
     label{ font-size:.86rem; color:var(--muted); display:block; margin: 0 0 6px; }
@@ -121,7 +121,28 @@
     }
     .dot{ width:8px; height:8px; border-radius:999px; background: var(--warn); }
 
+    /* Chart */
     #chart{ width:100%; height: clamp(320px, 48vh, 560px); border-radius: calc(var(--radius) - 6px); overflow:hidden; }
+    /* Load mask */
+    .chart-card{ position: relative; }
+    .chart-mask{
+      position:absolute; inset:12px 12px 12px 12px; /* respect card padding */
+      display:none; align-items:center; justify-content:center; gap:12px;
+      backdrop-filter: blur(6px);
+      background: color-mix(in hsl, var(--bg) 30%, transparent);
+      border-radius: calc(var(--radius) - 6px);
+      z-index: 5;
+      pointer-events: none;
+    }
+    .chart-mask.show{ display:flex; }
+    .spin{
+      width:22px; height:22px; border-radius:999px;
+      border:3px solid color-mix(in hsl, var(--fg) 25%, transparent);
+      border-top-color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg) } }
+    .mask-text{ font-size:.95rem; color: var(--muted) }
 
     .table-card{ padding: 12px; }
     table{ width:100%; border-collapse: collapse; font-size: clamp(.86rem, 1.5vw, .95rem); }
@@ -202,9 +223,14 @@
   </section>
 
   <!-- Chart -->
-  <section class="card pad" aria-label="Barometric pressure over time">
+  <section class="card pad chart-card" aria-label="Barometric pressure over time">
     <div class="status"><span class="dot" aria-hidden="true"></span><span id="status">Loading…</span></div>
     <div id="chart" role="img" aria-label="Line chart of barometric pressure"></div>
+    <!-- Modern load mask over the chart -->
+    <div id="chartMask" class="chart-mask" aria-hidden="true">
+      <div class="spin" aria-hidden="true"></div>
+      <div class="mask-text">Loading…</div>
+    </div>
   </section>
 
   <section class="card table-card" aria-label="Data table">
@@ -239,6 +265,7 @@
   const endInp    = document.getElementById('end');
   const quickBtns = Array.from(document.querySelectorAll('button[data-quick]'));
   const modeTabs  = Array.from(document.querySelectorAll('.seg [data-mode]'));
+  const chartMask = document.getElementById('chartMask');
 
   // Location controls
   const locModeSel   = document.getElementById('locMode');
@@ -478,7 +505,8 @@
         splitLine: { lineStyle: { opacity: .12 } },
         scale: true,
         min: 28.5,
-        max: 31.0
+        max: 31.0,
+        axisLabel: { formatter: (v) => v.toFixed(1) }
       },
       dataZoom: [
         { type: 'inside', throttle: 40 }
@@ -544,8 +572,34 @@
     return all.filter(r => r.timeMs >= s && r.timeMs <= e);
   }
 
+  // --- Helpers: load mask + future-range guard ---
+  function showMask(){ chartMask.classList.add('show'); }
+  function hideMask(){ chartMask.classList.remove('show'); }
+
+  function snapToLast72h(){
+    const end = new Date();
+    const start = new Date(Date.now() - 72*3600*1000);
+    startInp.value = toLocalInputValue(start);
+    endInp.value   = toLocalInputValue(end);
+  }
+
+  function guardFutureForPastModes(){
+    if(currentMode === 'forecast') return;
+    const now = Date.now();
+    const sDate = fromLocalInputValue(startInp.value);
+    const eDate = fromLocalInputValue(endInp.value);
+    if(!sDate || !eDate) return;
+    if(eDate.getTime() > now || sDate.getTime() > now){
+      snapToLast72h();
+      setStatus("Selected dates were in the future — reset to last 72h.");
+    }
+  }
+
   async function applyRange(){
+    showMask();
     try{
+      guardFutureForPastModes();
+
       const sDate = fromLocalInputValue(startInp.value);
       const eDate = fromLocalInputValue(endInp.value);
       if(!(sDate && eDate) || isNaN(sDate) || isNaN(eDate) || sDate >= eDate){
@@ -581,17 +635,28 @@
       lastRows = [];
       renderTable([]);
       setSeries('Observed', []);
+    }finally{
+      hideMask();
     }
   }
 
   // ---------- Location helpers ----------
   async function updateStationAndRefresh(){
-    setStatus("Finding nearest station…");
-    const meta = await getNearestStation(CURRENT.lat, CURRENT.lon);
-    stationId  = meta.stationId;
-    pointsMeta = meta.pointsMeta;
-    stationEl.textContent = stationId;
-    await applyRange();
+    showMask();
+    try{
+      setStatus("Finding nearest station…");
+      const meta = await getNearestStation(CURRENT.lat, CURRENT.lon);
+      stationId  = meta.stationId;
+      pointsMeta = meta.pointsMeta;
+      stationEl.textContent = stationId;
+      await applyRange();
+    }catch(e){
+      console.error(e);
+      setStatus(String(e.message || e));
+      setDot('var(--err)');
+    }finally{
+      hideMask();
+    }
   }
 
   locModeSel.addEventListener('change', async () => {
